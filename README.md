@@ -91,6 +91,10 @@ development are the numbers the app actually serves — the failure the old proj
 unavoidable by having its notebook train BERT-QA while its API served an unrelated
 DialoGPT.
 
+The notebook is developed against a **live kernel** through the
+[Jupyter MCP server](docs/jupyter-mcp.md), so every cell is written, executed and checked
+in place rather than authored blind and hoped over.
+
 ## Getting started
 
 Development is fully local and uses the GPU for the fine-tune (PRD §16.1):
@@ -100,6 +104,13 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
 
 python -c "import torch; print(torch.cuda.is_available())"      # must print True
+```
+
+For notebook work, start the JupyterLab instance that Claude Code's MCP server attaches
+to (see [docs/jupyter-mcp.md](docs/jupyter-mcp.md)):
+
+```bash
+python scripts/start_jupyter.py
 ```
 
 Once the pipeline lands (Phases 1–6):

@@ -31,6 +31,19 @@ file and the PRD ever conflict, the PRD wins. If the PRD is silent, ask before a
 - **The API imports the same `src/` modules.** One implementation, two consumers — this keeps the
   notebook's reported numbers identical to what the app serves.
 
+## Working the notebook (live kernel — see `docs/jupyter-mcp.md`)
+`notebooks/development.ipynb` is driven through the **Jupyter MCP server**, not by editing its
+JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
+- Use the MCP tools: `use_notebook` → `read_notebook` / `insert_cell` / `edit_cell_source` /
+  `execute_cell`, and `execute_code` to probe kernel state without touching the notebook.
+- **The MCP server owns that file.** Do not regenerate it from a script, do not
+  `jupyter execute --inplace` it, and do not edit it as JSON — RTC keeps notebook state in a
+  YDoc as well as on disk, so file-level writes can be silently overwritten.
+- Plots return as PNG (`ALLOW_IMG_OUTPUT=true`). Never call `matplotlib.use("Agg")` in a cell;
+  it suppresses the inline backend and no image comes back.
+- `use_notebook`'s `kernel_id` wants a running kernel's UUID from `list_kernels`, not a
+  kernelspec name. Omit it to auto-start one.
+
 ## Do NOT
 - Revive or extend the old `app.py` / `api.py` / notebook / `model/` (reference only).
 - Introduce generation, RAG, or external APIs "to improve answers."

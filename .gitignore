@@ -12,11 +12,26 @@ __pycache__/
 # --- Jupyter ---
 .ipynb_checkpoints/
 
+# Real-time-collaboration runtime state, created by jupyter-collaboration when
+# the server runs. The YDoc CRDT store is a live scratch database, not a
+# deliverable -- committing it would leak notebook edit history and conflict on
+# every machine.
+.jupyter/
+.jupyter_ystore.db
+.jupyter_ystore.db-*
+*.ystore.db
+
 # --- Secrets / local config ---
 .env
 .env.*
 !.env.example
 *.key
+
+# .mcp.json IS committed (project-scoped MCP config, PRD §22) and contains no
+# secrets -- it references ${JUPYTER_TOKEN} by expansion. The real token lives
+# in these two files, which must never be.
+.claude/settings.local.json
+.jupyter_token
 
 # --- Raw datasets ---
 # COUGH is CC BY-NC-SA 4.0 and is fetched by `python -m src.download`, never

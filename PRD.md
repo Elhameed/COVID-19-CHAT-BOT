@@ -407,6 +407,12 @@ covid-chatbot/
 │   └── api.py              # FastAPI app: /predict, /health, threshold, disclaimer
 ├── notebooks/
 │   └── development.ipynb   # EDA + experiments + training run + eval; imports from src/
+│                           # driven via the Jupyter MCP server (docs/jupyter-mcp.md)
+├── scripts/
+│   └── start_jupyter.py    # JupyterLab the MCP server attaches to
+├── docs/
+│   └── jupyter-mcp.md      # live-kernel notebook workflow
+├── .mcp.json               # project-scoped MCP config (committed; no secrets)
 ├── tests/
 │   ├── test_retriever.py
 │   ├── test_evaluate.py
@@ -497,6 +503,20 @@ client; fully local development on the Quadro T2000; CPU-only inference is suffi
   reachable as `python -m src.*`, and `data/` stays purely generated output. §17 updated.
 - **Milestone commits per phase** (2026-08-14) on branch `rebuild/retrieval-v1`, so each
   phase boundary is a rollback point.
+- **Notebook development runs against a live kernel via the Jupyter MCP server**
+  (2026-08-14). Claude Code edits, executes and inspects `notebooks/development.ipynb`
+  through `datalayer/jupyter-mcp-server`, rather than rewriting the `.ipynb` JSON blind.
+  Consequences, detailed in `docs/jupyter-mcp.md`:
+  - **The MCP server owns the notebook.** Generating it from a script and running
+    `jupyter execute --inplace` (the Phase 1 method) is retired: with RTC enabled the
+    notebook also lives in a YDoc CRDT, and file-level writes can be overwritten or
+    diverge. `src/` modules are still edited as ordinary files.
+  - **Config is project-scoped and committed** (`.mcp.json`), holding no secret — it
+    expands `${JUPYTER_TOKEN}` from the environment. The token lives only in the
+    gitignored `.claude/settings.local.json`.
+  - **`jupyter-collaboration==5.0.0` is in `requirements.txt`** (RTC is server-side); the
+    MCP server itself is deliberately *not*, since its unpinned `fastapi`/`uvicorn` would
+    break the §16 pins. `uvx` runs it in an isolated environment.
 
 **Open decisions (record the choice here before implementing the affected phase):**
 1. **Cross-encoder re-ranker** now vs. after the fine-tuned bi-encoder. *Recommendation: after Phase 4.*

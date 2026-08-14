@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "jupyter": {
+      "command": "uvx",
+      "args": ["jupyter-mcp-server@latest"],
+      "env": {
+        "JUPYTER_URL": "${JUPYTER_URL:-http://localhost:8888}",
+        "JUPYTER_TOKEN": "${JUPYTER_TOKEN}",
+        "DOCUMENT_ID": "${DOCUMENT_ID:-notebooks/development.ipynb}",
+        "ALLOW_IMG_OUTPUT": "true"
+      }
+    }
+  }
+}
