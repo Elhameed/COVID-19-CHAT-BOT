@@ -1,197 +1,142 @@
-Covicare - COVID-19 Chatbot
-===========================
+# Covicare — COVID-19 FAQ Chatbot
 
-📌 Project Overview
--------------------
+A **retrieval-only** COVID-19 information chatbot: it matches a user's plain-language
+question to the best vetted FAQ answer, returns it with its source and a medical
+disclaimer, and **abstains when it isn't confident**. It never generates medical text.
 
-This project implements a **COVID-19 chatbot** using a **fine-tuned BERT model** to answer COVID-related questions. The chatbot is trained on a domain-specific dataset and optimized using **hyperparameter tuning** to improve accuracy and response quality. The chatbot can be deployed as an API and integrated into a **Flutter mobile app**.
+The retriever is a bi-encoder **fine-tuned locally** on the COUGH benchmark and exported
+as a model artifact the API loads at startup.
 
-🌟 Features
------------
+> **Status: rebuild in progress.** This repository is being rebuilt from scratch against
+> [`PRD.md`](PRD.md). Phase 0 (hygiene and scaffold) is complete; the retrieval pipeline
+> lands in Phases 1–5. **No accuracy numbers are published here yet** — the ones that
+> appear will be reproducible by `python -m src.evaluate` on the held-out test split, and
+> nothing else.
 
-*   **AI-powered Chatbot:** Uses a fine-tuned Transformer model (**BERT**) for answering COVID-19-related questions.
-    
-*   **FastAPI Backend:** Serves model predictions as a REST API.
-    
-*   **Flutter Mobile App:** Interactive UI for real-time conversations.
-    
-*   **Error Handling:** Displays appropriate messages when the API is unavailable.
-    
-*   **Themed UI:** Uses a **purple color scheme** to match COVID-19 awareness themes.
-    
+## Why retrieval, not generation
 
-🛠️ Tech Stack
---------------
+The previous implementation fine-tuned generative and extractive models (DialoGPT,
+BERT-QA) on ~110 unique QA pairs duplicated into a 24k-row file. That produced metrics
+that looked excellent and meant nothing, and a backend that could not start because the
+weights were git-ignored.
 
-*   **Backend:** FastAPI, TensorFlow, Transformers
-    
-*   **Frontend:** Flutter (Dart)
-    
-*   **Deployment:** Localhost
-    
+The rebuild changes the framing of the problem. For a health-information bot over a few
+thousand curated FAQ pairs, retrieval is the better answer on every axis that matters:
 
-📂 Dataset
-----------
+| | Generation | **Retrieval (chosen)** |
+|---|---|---|
+| Hallucinated medical claims | possible | **impossible — answers are stored text** |
+| Attribution | hard | **every answer carries its source** |
+| Honest evaluation | awkward at this scale | **standard IR metrics on a real benchmark** |
+| Data needed | far more than we have | **fits the corpus exactly** |
 
-*   **Source:** Custom (created based on different conversational pairs that align with COVID-19)
-    
-*   **Format:** JSON
-    
-*   **Structure:** Contains **question-answer pairs** related to COVID-19.
-    
-*   **Preprocessing:**
-    
-    *   Removed duplicates and missing values
-        
-    *   Lowercased text
-        
-    *   Removed special characters
-        
-    *   Tokenized using **BERT Tokenizer**
-        
+A confident wrong match is the remaining failure mode, which is what the confidence
+threshold and abstention path exist to control.
 
-🤖 Model Training & Fine-Tuning
--------------------------------
+Retrieval-only does **not** mean nothing is trained. The bi-encoder is fine-tuned on the
+COUGH training queries with `MultipleNegativesRankingLoss` — training the model that
+*ranks* vetted answers, never one that writes them.
 
-*   **Pretrained Model Used:** bert-base-uncased
-    
-*   **Task:** Question Answering
-    
-*   **Training Framework:** TensorFlow & Hugging Face Transformers
-    
-*   **Training Pipeline:**
-    
-    1.  Tokenization using **BERT Tokenizer**
-        
-    2.  Fine-tuning on COVID-19 QA dataset
-        
-    3.  Hyperparameter tuning
-        
-    4.  Evaluation using **F1-score, BLEU, and Perplexity**
-        
-    5.  Deployment-ready model saved
- 
-🔬 Hyperparameter Tuning
-------------------------
+## How quality is established
 
-Fine-tuning a Transformer-based Question Answering (QA) model requires optimizing hyperparameters such as batch size, learning rate, number of epochs, and weight decay. The goal of these experiments was to improve F1-score, BLEU score, and perplexity while avoiding overfitting.
-
-### 🚀 Experimentation Setup
-
-Four key hyperparameters were varied:
-
-* Batch Size: 8, 16, 32
-* Learning Rate: 2e-5, 3e-5, 5e-5
-* Epochs: 3, 5, 7
-* Weight Decay: 0.01, 0.05
-  
-Each experiment was evaluated based on:
-
-* F1-score (Start & End Positions)
-* BLEU Score (measures text similarity)
-* Perplexity (lower values indicate better generalization)
-
-### 📊 Experimentation Results
-
-| Experiment     | Batch Size | Learning Rate | Epochs | Weight Decay | F1 Score (Start) | F1 Score (End) | BLEU Score | Perplexity |
-|----------------|------------|---------------|--------|--------------|------------------|----------------|------------|------------|
-| **Base model** | 8          | 2e-5          | 5      | 0.01         | 0.4499           | 0.9090         | 0.8929     | 9.1298     |
-| 1          | 8          | 2e-5          | 3      | 0.01         | 0.7758           | 0.9697         | 0.9541     | 2.1662     |
-| **2 ✅**   | **8**      | **3e-5**      | **5**  | **0.01**     | **0.9576**       | **1.0000**     | **0.9993** | **1.3079** |
-| 3          | 8          | 5e-5          | 7      | 0.01         | 0.9576           | 1.0000         | 0.9993     | 1.3635     |
-| 4          | 16         | 2e-5          | 5      | 0.01         | 0.9576           | 1.0000         | 0.9993     | 1.4738     |
-| 5          | 16         | 3e-5          | 7      | 0.05         | 0.9576           | 1.0000         | 0.9993     | 1.6090     |
-| 6          | 16          | 5e-5          | 3      | 0.05         | 0.9576           | 1.0000         | 0.9993     | 1.5480     |
-| 7          | 32         | 2e-5          | 7      | 0.01         | 0.9576           | 1.0000         | 0.9993     | 1.5431     |
-| 8          | 32         | 3e-5          | 3      | 0.05         | 0.9576           | 1.0000         | 0.9993     | 1.6574     |
-| 9          | 32          | 5e-5          | 5      | 0.05         | 0.9576           | 1.0000         | 0.9993     | 1.4929     |
-| 10         | 16         | 2e-5          | 5      | 0.01         | 0.9576           | 0.9697         | 0.9639     | 1.8702     |
-| 11         | 8         | 2e-5          | 7      | 0.05         | 0.9576           | 1.0000         | 0.9993     | 1.6848     |
-| 12         | 32         | 3e-5          | 7      | 0.01         | 0.9167           | 1.0000         | 0.9993     | 1.8917     |
-
-
-🏆 **Best Model Configuration:**
-
-**Experiment 2** (Batch Size: **8**, Learning Rate: **3e-5**, Epochs: **5**, Weight Decay: **0.01**)
-    
-*   **F1 Score (Start):** 0.9576
-    
-*   **F1 Score (End):** 1.0000
-    
-*   **BLEU Score:** 0.9993
-
-*   **Perplexity:** 1.3079 (Lowest, indicating better generalization)
-
-
-📌 Key Observations
-----------------------
-
-1. **Increasing epochs improved performance but reached a plateau** after 5 epochs. Beyond this, improvements were marginal, while overfitting risks increased.
-   
-2. **Higher learning rates (5e-5) led to slight instability,** with some runs showing increased perplexity.
-
-3. **Batch size of 8 consistently provided better generalization** than 16 or 32.
-   
-4. **Weight decay of 0.01 helped maintain stability,** while 0.05 slightly degraded performance.
-
-
-🚀 Running Covicare
--------------------
-
-### **1️⃣ Clone the Repository**
+Three retrievers, measured on the same held-out queries, each required to beat the last:
 
 ```
-git clone https://github.com/Elhameed/COVID-19-CHAT-BOT.git
-cd covid-19-chatbot
-
+BM25 (lexical baseline)  <  off-the-shelf bi-encoder  <  fine-tuned bi-encoder
 ```
 
-### **2️⃣ Deploy the API Locally**
+The 1,201 COUGH queries are split train/dev/test with a fixed seed. Training uses train,
+threshold tuning and early stopping use dev, and **every reported number comes from test**.
+The 7,117-entry FAQ corpus is never split — all of it stays retrievable at every stage.
+
+If the fine-tune fails to beat the off-the-shelf encoder, it is not adopted, and that
+result gets recorded rather than buried.
+
+## Data
+
+**[COUGH](https://github.com/sunlab-osu/covid-faq)** — a COVID-19 FAQ retrieval benchmark
+that ships with relevance judgments, which is what makes honest evaluation possible.
+
+| File | Rows | Role |
+|---|---|---|
+| `FAQ_Bank_eval.csv` | 7,117 | Retrieval corpus **and** served knowledge base |
+| `User_Query_Bank.csv` | 1,201 | Queries, split train/dev/test |
+| `Annotated_Relevance_Set.csv` | 39,760 | Relevance judgments (qrels) |
+
+Licensed **CC BY-NC-SA 4.0**, research and education use only. Raw data is fetched, never
+committed — see [`data/README.md`](data/README.md).
+
+The content dates from ~2020–2021 and mixes WHO/CDC with community sources, so answers
+carry a source, a trust tier, and a disclaimer.
+
+## Architecture
 
 ```
-uvicorn app:app --reload
-
+Flutter app ──POST /predict──► FastAPI
+                                 ├─ retriever      BM25 │ fine-tuned bi-encoder (+ optional re-ranker)
+                                 ├─ knowledge base data/kb.parquet + precomputed embeddings
+                                 ├─ encoder        artifacts/encoder/  (the trained artifact)
+                                 └─ threshold      → answer + source + disclaimer, or abstention
 ```
 
-### **3️⃣ Run the Flutter App**
+### Notebook and `src/` share one implementation
 
-```
-cd covid_chatbot
-flutter run
+`src/` holds every reusable piece — prep, index, retriever, train, evaluate, api.
+[`notebooks/development.ipynb`](notebooks/) **imports** them; it never keeps its own copy
+of preprocessing, retrieval, training, or metric code. The API imports exactly the same
+modules.
 
-```
+One implementation, two consumers. This is what guarantees the numbers reported during
+development are the numbers the app actually serves — the failure the old project made
+unavoidable by having its notebook train BERT-QA while its API served an unrelated
+DialoGPT.
 
+## Getting started
 
-💬 Example Conversations
-------------------------
+Development is fully local and uses the GPU for the fine-tune (PRD §16.1):
 
-<p align="center">
-  <img src="screenshots/screenshot_1.png" width="45%">
-  <img src="", width="5%">
-  <img src="screenshots/screenshot_2.png" width="45%">
-</p>
+```bash
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
 
-
-📌 Project Structure
---------------------
-
-```
-📂 covid-19-chatbot
- ├── 📂 covid_chatbot    # Flutter app
- ├── 📂 data             # Dataset files
- ├── 📂 models           # Saved fine-tuned models
- ├── 📂 notebook         # Jupuyter notebook
- ├── 📂 screenshots      # Demo app screenshots
- ├── README.md           # Project Documentation
- ├── app.py       # API Deployment Script
-
+python -c "import torch; print(torch.cuda.is_available())"      # must print True
 ```
 
-📽️ Demo Video
---------------
+Once the pipeline lands (Phases 1–6):
 
-[Watch Here](https://drive.google.com/drive/folders/1Q3mIk5a8cK-EH2TpP6wdNlA65cygx2PS?usp=sharing)
+```bash
+python -m src.download         # fetch COUGH
+python -m src.prep              # -> data/kb.parquet + seeded query splits
+python -m src.train             # fine-tune -> artifacts/encoder/
+python -m src.evaluate          # MRR@10 / P@k / Recall / nDCG on the test split
+uvicorn src.api:app --reload    # serve on :8000
+pytest                          # tests
+```
 
-* * * * *
+Serving needs no GPU — CPU inference is fine at this corpus size.
 
-📌 **For more details, check the full repository!** 🚀
+The Flutter client lives in [`app/`](app/) — see [`app/README.md`](app/README.md).
+
+## Roadmap
+
+Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
+
+| Phase | | Status |
+|---|---|---|
+| 0 | Hygiene & scaffold | ✅ done |
+| 1 | Data pipeline (`download.py`, `prep.py`, splits, EDA) | next |
+| 2 | BM25 baseline + evaluation harness | |
+| 3 | Off-the-shelf semantic retriever + threshold/abstention | |
+| 4 | **Fine-tune the retriever** → `artifacts/encoder/` | |
+| 5 | Cross-encoder re-ranker (optional) | |
+| 6 | FastAPI service | |
+| 7 | Flutter integration | |
+| 8 | Tests + CI | |
+| 9 | Docker, deploy, docs | |
+
+## Not medical advice
+
+General information only, drawn from a dated static snapshot. It does not diagnose,
+triage, or personalize. For personal or urgent concerns consult a healthcare professional
+or [WHO](https://www.who.int/emergencies/diseases/novel-coronavirus-2019) /
+[CDC](https://www.cdc.gov/covid/).
