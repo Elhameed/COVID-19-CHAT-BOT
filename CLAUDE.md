@@ -34,6 +34,10 @@ file and the PRD ever conflict, the PRD wins. If the PRD is silent, ask before a
 ## Working the notebook (live kernel — see `docs/jupyter-mcp.md`)
 `notebooks/development.ipynb` is driven through the **Jupyter MCP server**, not by editing its
 JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
+- **Session bootstrap:** the MCP server starts with an empty token (`.mcp.json`'s
+  `${JUPYTER_TOKEN}` expands against Claude Code's own environment, not `settings.local.json`),
+  so the first call 403s. Read `.jupyter_token` and call `connect_to_jupyter` once, then
+  `use_notebook`.
 - Use the MCP tools: `use_notebook` → `read_notebook` / `insert_cell` / `edit_cell_source` /
   `execute_cell`, and `execute_code` to probe kernel state without touching the notebook.
 - **The MCP server owns that file.** Do not regenerate it from a script, do not

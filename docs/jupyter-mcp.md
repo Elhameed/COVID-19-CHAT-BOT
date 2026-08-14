@@ -56,8 +56,27 @@ which Claude Code expands from its environment.
 | `.jupyter_token` | **no** | yes, for shell use |
 
 `scripts/start_jupyter.py` generates a token on first run and writes it to
-`.claude/settings.local.json`. **Restart Claude Code after that** so the new value is in
-its environment when it spawns the MCP server.
+`.claude/settings.local.json`.
+
+### ⚠️ `settings.local.json` is not enough on its own
+
+Verified the hard way: `${JUPYTER_TOKEN}` in `.mcp.json` is expanded against **Claude
+Code's own process environment**, which is not the same thing as the `env` block in
+`settings.local.json`. That block *does* reach tool subprocesses — a Bash call sees
+`JUPYTER_TOKEN` — but the MCP server is spawned with the expansion already resolved, so it
+received an empty token and every call returned **403 Forbidden**.
+
+So the reliable session bootstrap is the `connect_to_jupyter` tool, which takes the URL and
+token as arguments and sidesteps expansion entirely:
+
+```
+read .jupyter_token  →  connect_to_jupyter(jupyter_url=..., jupyter_token=...)
+```
+
+That is one call at the start of a session, and it is what CLAUDE.md instructs. The
+`${JUPYTER_TOKEN}` entry stays in `.mcp.json` because it works for anyone who exports a
+*real* environment variable before launching Claude Code (`setx JUPYTER_TOKEN …` on
+Windows), which removes the bootstrap step.
 
 To rotate: delete both gitignored files and re-run the script.
 
