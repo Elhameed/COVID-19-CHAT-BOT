@@ -1,0 +1,27 @@
+# Lint + format configuration (PRD §16.2).
+#
+# 100 columns rather than the default 88: the retrieval code carries long
+# explanatory comments and pandas expressions that read worse when wrapped.
+
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "notebooks"]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+]
+
+[lint.per-file-ignores]
+# Tests assert on fixtures and use pytest's argument-shadowing fixture style.
+"tests/*" = ["S101"]
+
+[format]
+docstring-code-format = true
