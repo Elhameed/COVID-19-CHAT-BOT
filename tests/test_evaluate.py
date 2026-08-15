@@ -202,6 +202,29 @@ needs_artifacts = pytest.mark.skipif(
 )
 
 
+# Scoring BM25 over all 1,201 queries takes ~20s, and three tests below need
+# it. Module-scoped so each configuration is computed once rather than per test.
+@pytest.fixture(scope="module")
+def bm25_all_question() -> EvalResult:
+    from src.evaluate import evaluate_bm25
+
+    return evaluate_bm25(split="all", field="question")
+
+
+@pytest.fixture(scope="module")
+def bm25_all_question_answer() -> EvalResult:
+    from src.evaluate import evaluate_bm25
+
+    return evaluate_bm25(split="all", field="question_answer")
+
+
+@pytest.fixture(scope="module")
+def bm25_test_question() -> EvalResult:
+    from src.evaluate import evaluate_bm25
+
+    return evaluate_bm25(split="test", field="question")
+
+
 @needs_artifacts
 class TestBm25Regression:
     """Committed baseline metrics. CI fails if retrieval quality drops.
@@ -210,30 +233,24 @@ class TestBm25Regression:
     to catch a real regression, e.g. a tokenizer change that drops digits.
     """
 
-    def test_reproduces_published_baseline_on_all_queries(self) -> None:
-        from src.evaluate import evaluate_bm25
-
-        result = evaluate_bm25(split="all", field="question")
+    def test_reproduces_published_baseline_on_all_queries(
+        self, bm25_all_question: EvalResult
+    ) -> None:
         # PRD 8.3 reports MRR@10 0.530 / P@1 0.421 on the pre-dedup corpus.
-        assert result.mrr_at_10 == pytest.approx(0.524, abs=0.015)
-        assert result.p_at_1 == pytest.approx(0.421, abs=0.015)
+        assert bm25_all_question.mrr_at_10 == pytest.approx(0.524, abs=0.015)
+        assert bm25_all_question.p_at_1 == pytest.approx(0.421, abs=0.015)
 
-    def test_question_only_beats_question_plus_answer(self) -> None:
+    def test_question_only_beats_question_plus_answer(
+        self, bm25_all_question: EvalResult, bm25_all_question_answer: EvalResult
+    ) -> None:
         """The PRD 8.3 finding that drives the default field choice."""
-        from src.evaluate import evaluate_bm25
+        assert bm25_all_question.mrr_at_10 > bm25_all_question_answer.mrr_at_10
+        assert bm25_all_question.p_at_1 > bm25_all_question_answer.p_at_1
 
-        q = evaluate_bm25(split="all", field="question")
-        qa = evaluate_bm25(split="all", field="question_answer")
-        assert q.mrr_at_10 > qa.mrr_at_10
-        assert q.p_at_1 > qa.p_at_1
-
-    def test_test_split_baseline_is_stable(self) -> None:
-        """The number Phases 3 and 4 must beat."""
-        from src.evaluate import evaluate_bm25
-
-        result = evaluate_bm25(split="test", field="question")
-        assert result.mrr_at_10 == pytest.approx(0.5127, abs=0.02)
-        assert result.p_at_1 == pytest.approx(0.4033, abs=0.02)
+    def test_test_split_baseline_is_stable(self, bm25_test_question: EvalResult) -> None:
+        """The number the semantic retriever must beat."""
+        assert bm25_test_question.mrr_at_10 == pytest.approx(0.5127, abs=0.02)
+        assert bm25_test_question.p_at_1 == pytest.approx(0.4033, abs=0.02)
 
 
 # --------------------------------------------------------------------------

@@ -1,0 +1,254 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Fast feedback: lint before anything expensive downloads a model.
+  # ---------------------------------------------------------------------
+  python-lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff
+        # Pinned to the same version the repo formats with, so CI and local
+        # agree. Installing ruff alone keeps this job under ~20s.
+        run: pip install "ruff==0.16.3"
+
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+
+  # ---------------------------------------------------------------------
+  # Python tests. Needs the COUGH corpus and the MiniLM encoder, both cached.
+  # ---------------------------------------------------------------------
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements-cpu.txt
+            requirements-base.txt
+
+      - name: Install dependencies
+        # CPU torch: the dev pin is a CUDA build and would pull ~2.3 GB of
+        # unusable CUDA onto a runner with no GPU (PRD §20).
+        run: pip install -r requirements-cpu.txt
+
+      - name: Verify torch is the CPU build
+        run: |
+          python - <<'PY'
+          import torch, sys
+          print("torch", torch.__version__, "cuda build:", torch.version.cuda)
+          if "+cpu" not in torch.__version__:
+              sys.exit("expected a CPU torch build on CI")
+          PY
+
+      # The corpus is fetched from GitHub and is stable, so cache it on the
+      # fetch script's hash: a change to download.py invalidates it.
+      - name: Cache COUGH corpus
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: cough-${{ hashFiles('src/download.py') }}
+
+      # ~90 MB encoder from Hugging Face. Keyed on the retriever config so
+      # switching encoders fetches the new one.
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('artifacts/retriever_config.json') }}
+
+      # Derived artifacts. Rebuilt whenever the pipeline that produces them
+      # changes, which is exactly when a stale cache would be wrong.
+      - name: Cache derived artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/kb.parquet
+            data/queries.parquet
+            data/qrels.parquet
+            data/splits
+            data/embeddings
+            data/prep_report.json
+          key: >-
+            artifacts-${{ hashFiles('src/prep.py', 'src/index.py',
+            'artifacts/retriever_config.json') }}
+
+      - name: Fetch corpus
+        run: python -m src.download
+
+      - name: Build knowledge base and splits
+        run: python -m src.prep
+
+      - name: Build embeddings
+        run: python -m src.index
+
+      - name: Run tests
+        run: pytest tests/ -q --durations=10
+
+      # Guards the headline claim in the README. If retrieval quality drifts,
+      # this fails rather than the number quietly going stale (PRD §19).
+      - name: Regression check on the test split
+        run: python -m src.evaluate --split test --retriever both
+
+  # ---------------------------------------------------------------------
+  # Flutter analyze + unit/widget tests.
+  # ---------------------------------------------------------------------
+  flutter-test:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      # The live-API test skips itself when no server is running, so the
+      # default suite stays green here without standing one up.
+      - run: flutter test
+
+  # ---------------------------------------------------------------------
+  # Release Android build.
+  #
+  # Not redundant with flutter-test: two real defects reached the repository
+  # because only debug builds were ever run. Release does PNG crunching and
+  # resource merging that debug skips, and it uses the main manifest rather
+  # than debug/. Both bugs would have been caught here on the first push.
+  # ---------------------------------------------------------------------
+  android-build:
+    name: Android release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # AGP 8.11 and Kotlin 2.2 require Java 17.
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('app/android/**/*.gradle*', 'app/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release --dart-define=API_BASE_URL=https://api.invalid
+
+      - name: Verify the release manifest
+        # INTERNET was previously declared only in the debug manifest, so
+        # release builds had no network access at all. Assert it survives.
+        run: |
+          set -euo pipefail
+          AAPT="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)"
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          "$AAPT" dump permissions "$APK" | tee /tmp/perms.txt
+          grep -q "android.permission.INTERNET" /tmp/perms.txt \
+            || { echo "::error::INTERNET permission missing from the release APK"; exit 1; }
+          "$AAPT" dump xmltree --file AndroidManifest.xml "$APK" \
+            | grep -q networkSecurityConfig \
+            || { echo "::error::networkSecurityConfig missing from the release APK"; exit 1; }
+          echo "release manifest OK"
+
+  # ---------------------------------------------------------------------
+  # Repository hygiene.
+  # ---------------------------------------------------------------------
+  integrity:
+    name: Repository integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check committed binaries are not corrupt
+        # 35 of 37 PNGs were once corrupted in the committed blobs by CRLF
+        # normalization, and it only surfaced on a release build months later.
+        # .gitattributes prevents a recurrence; this proves it.
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          from pathlib import Path
+
+          PNG = b"\x89PNG\r\n\x1a\n"
+          files = subprocess.run(
+              ["git", "ls-files", "*.png"], capture_output=True, text=True, check=True
+          ).stdout.split()
+          bad = [f for f in files if Path(f).exists() and Path(f).read_bytes()[:8] != PNG]
+          for f in bad:
+              print(f"::error file={f}::corrupt PNG signature (CRLF mangling?)")
+          print(f"{len(files) - len(bad)}/{len(files)} PNGs valid")
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Check no data or model artifacts are committed
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+
+          tracked = subprocess.run(
+              ["git", "ls-files"], capture_output=True, text=True, check=True
+          ).stdout.split()
+          forbidden = [
+              f for f in tracked
+              if f.endswith((".parquet", ".safetensors", ".npz", ".npy", ".pt", ".ckpt"))
+              or f.startswith("data/raw/")
+              or "__pycache__" in f
+          ]
+          for f in forbidden:
+              print(f"::error file={f}::must not be committed")
+          print(f"{len(tracked)} tracked files, {len(forbidden)} forbidden")
+          sys.exit(1 if forbidden else 0)
+          PY

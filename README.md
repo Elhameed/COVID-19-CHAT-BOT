@@ -197,8 +197,29 @@ Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
 | 4 | Cross-encoder re-ranker (optional) | next |
 | 5 | FastAPI service | ✅ |
 | 6 | Flutter integration | ✅ |
-| 7 | Tests + CI | next |
-| 8 | Docker, deploy, docs | |
+| 7 | Tests + CI | ✅ |
+| 8 | Docker, deploy, docs | next |
+
+## Tests and CI
+
+```bash
+pytest                       # 163 Python tests, ~90s
+cd app && flutter test       # 37 Flutter tests
+```
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push:
+
+| Job | What it guards |
+|---|---|
+| Python lint | `ruff check` + `format --check` |
+| Python tests | 163 tests, plus a regression check on the test-split metrics |
+| Flutter analyze and test | 37 tests against a mocked client |
+| **Android release build** | builds a release APK and asserts `INTERNET` and the network-security config survive into the manifest |
+| Repository integrity | no corrupt PNGs, no committed data or model artifacts |
+
+The release build is not redundant. Two real defects — a missing `INTERNET` permission and
+35 CRLF-corrupted PNGs — reached the repository because only debug builds were ever run;
+debug skips PNG crunching and uses a different manifest. Both would fail this job.
 
 ## Not medical advice
 

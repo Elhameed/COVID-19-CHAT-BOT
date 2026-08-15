@@ -54,6 +54,17 @@ def _stub_service(hits: list[tuple[int, float]], tau: float = 0.7) -> ChatbotSer
     )
 
 
+def _client(service: ChatbotService) -> TestClient:
+    """A client whose service is stubbed.
+
+    Deliberately NOT used as a context manager: that would run the lifespan and
+    load the real encoder and embeddings (~6s), for a service this immediately
+    overrides. Skipping startup is what keeps the API suite fast.
+    """
+    app.dependency_overrides[get_service] = lambda: service
+    return TestClient(app)
+
+
 @pytest.fixture(autouse=True)
 def _no_rate_limit() -> Iterator[None]:
     """Disable the limiter except where a test opts in."""
@@ -65,17 +76,13 @@ def _no_rate_limit() -> Iterator[None]:
 
 @pytest.fixture
 def client_confident() -> Iterator[TestClient]:
-    app.dependency_overrides[get_service] = lambda: _stub_service([(1, 0.91)])
-    with TestClient(app) as c:
-        yield c
+    yield _client(_stub_service([(1, 0.91)]))
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def client_unsure() -> Iterator[TestClient]:
-    app.dependency_overrides[get_service] = lambda: _stub_service([(1, 0.42)])
-    with TestClient(app) as c:
-        yield c
+    yield _client(_stub_service([(1, 0.42)]))
     app.dependency_overrides.clear()
 
 
@@ -131,9 +138,9 @@ class TestPredictContract:
         assert "6 feet" in body["answer"]
 
     def test_empty_url_becomes_null_rather_than_empty_string(self) -> None:
-        app.dependency_overrides[get_service] = lambda: _stub_service([(2, 0.95)])
-        with TestClient(app) as c:
-            body = c.post("/predict", json={"question": "mask?"}).json()
+        body = (
+            _client(_stub_service([(2, 0.95)])).post("/predict", json={"question": "mask?"}).json()
+        )
         app.dependency_overrides.clear()
         assert body["url"] is None
         assert body["trust"] == "community"
@@ -168,18 +175,18 @@ class TestAbstention:
         assert body["score"] == pytest.approx(0.42)
 
     def test_no_hits_at_all_abstains(self) -> None:
-        app.dependency_overrides[get_service] = lambda: _stub_service([])
-        with TestClient(app) as c:
-            body = c.post("/predict", json={"question": "???"}).json()
+        body = _client(_stub_service([])).post("/predict", json={"question": "???"}).json()
         app.dependency_overrides.clear()
         assert body["abstained"] is True
         assert body["score"] == 0.0
 
     def test_score_exactly_at_tau_is_answered(self) -> None:
         """The threshold is inclusive; stated so the boundary can't drift silently."""
-        app.dependency_overrides[get_service] = lambda: _stub_service([(1, 0.7)], tau=0.7)
-        with TestClient(app) as c:
-            body = c.post("/predict", json={"question": "spread?"}).json()
+        body = (
+            _client(_stub_service([(1, 0.7)], tau=0.7))
+            .post("/predict", json={"question": "spread?"})
+            .json()
+        )
         app.dependency_overrides.clear()
         assert body["abstained"] is False
 
@@ -228,8 +235,9 @@ class TestErrorHandling:
         service = _stub_service([])
         service.retriever = _Exploding()
         app.dependency_overrides[get_service] = lambda: service
-        with TestClient(app, raise_server_exceptions=False) as c:
-            response = c.post("/predict", json={"question": "spread?"})
+        response = TestClient(app, raise_server_exceptions=False).post(
+            "/predict", json={"question": "spread?"}
+        )
         app.dependency_overrides.clear()
 
         assert response.status_code == 500
@@ -267,12 +275,11 @@ class TestRateLimit:
         FastAPI registers the undecorated function and the limit never applies."""
         limiter.enabled = True
         limiter.reset()
-        app.dependency_overrides[get_service] = lambda: _stub_service([(1, 0.91)])
+        client = _client(_stub_service([(1, 0.91)]))
         try:
-            with TestClient(app) as c:
-                codes = [
-                    c.post("/predict", json={"question": f"q{i}"}).status_code for i in range(40)
-                ]
+            codes = [
+                client.post("/predict", json={"question": f"q{i}"}).status_code for i in range(40)
+            ]
         finally:
             app.dependency_overrides.clear()
             limiter.reset()
@@ -285,10 +292,9 @@ class TestRateLimit:
         """A load balancer polls /health; limiting it would cause false outages."""
         limiter.enabled = True
         limiter.reset()
-        app.dependency_overrides[get_service] = lambda: _stub_service([(1, 0.91)])
+        client = _client(_stub_service([(1, 0.91)]))
         try:
-            with TestClient(app) as c:
-                codes = [c.get("/health").status_code for _ in range(50)]
+            codes = [client.get("/health").status_code for _ in range(50)]
         finally:
             app.dependency_overrides.clear()
             limiter.reset()

@@ -77,8 +77,18 @@ Future<void> _ask(WidgetTester tester, String question) async {
   await tester.pump(); // register the user message + spinner
 }
 
-Future<void> _pumpChat(WidgetTester tester, ApiService api) async {
-  await tester.pumpWidget(MaterialApp(home: ChatScreen(apiService: api)));
+Future<void> _pumpChat(
+  WidgetTester tester,
+  ApiService api, {
+  Duration minimumResponseDelay = Duration.zero,
+}) async {
+  // Zero by default: the pacing floor is presentation, and paying it in every
+  // test would add a second per interaction. It has dedicated tests below.
+  await tester.pumpWidget(
+    MaterialApp(
+      home: ChatScreen(apiService: api, minimumResponseDelay: minimumResponseDelay),
+    ),
+  );
 }
 
 void main() {
@@ -324,6 +334,86 @@ void main() {
     testWidgets('states the disclaimer before the user starts', (tester) async {
       await tester.pumpWidget(const MaterialApp(home: WelcomeScreen()));
       expect(find.textContaining('not medical advice'), findsOneWidget);
+    });
+  });
+
+  group('Response pacing', () {
+    // Retrieval answers in ~25 ms, so the typing indicator would otherwise
+    // appear and vanish within a frame. The floor is presentation only.
+
+    testWidgets('a fast answer is held back until the floor elapses',
+        (tester) async {
+      await _pumpChat(
+        tester,
+        _apiReturning(_answerJson), // responds instantly
+        minimumResponseDelay: const Duration(milliseconds: 900),
+      );
+      await _ask(tester, 'how does covid spread?');
+
+      // Well after the response arrived, but before the floor.
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(TypingIndicator), findsOneWidget);
+      expect(find.textContaining('Mainly person to person'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(find.byType(TypingIndicator), findsNothing);
+      expect(find.textContaining('Mainly person to person'), findsOneWidget);
+    });
+
+    testWidgets('a slow answer is NOT delayed any further', (tester) async {
+      // The response takes longer than the floor, so no padding may be added:
+      // the point is to stop the indicator flashing, never to add latency.
+      await _pumpChat(
+        tester,
+        _apiReturning(_answerJson, delay: const Duration(milliseconds: 1500)),
+        minimumResponseDelay: const Duration(milliseconds: 900),
+      );
+      await _ask(tester, 'how does covid spread?');
+
+      await tester.pump(const Duration(milliseconds: 1490));
+      expect(find.textContaining('Mainly person to person'), findsNothing);
+
+      // Arrives on its own schedule, with nothing added on top.
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Mainly person to person'), findsOneWidget);
+    });
+
+    testWidgets('errors are paced too, so failures do not flash', (tester) async {
+      await _pumpChat(
+        tester,
+        _apiFailing(http.ClientException('refused')),
+        minimumResponseDelay: const Duration(milliseconds: 900),
+      );
+      await _ask(tester, 'how does covid spread?');
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byIcon(Icons.cloud_off), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(find.byIcon(Icons.cloud_off), findsOneWidget);
+    });
+
+    testWidgets('send stays disabled for the whole hold', (tester) async {
+      await _pumpChat(
+        tester,
+        _apiReturning(_answerJson),
+        minimumResponseDelay: const Duration(milliseconds: 900),
+      );
+      await _ask(tester, 'first');
+
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        tester.widget<IconButton>(find.byKey(sendButtonKey)).onPressed,
+        isNull,
+        reason: 'a second question must not be sendable mid-hold',
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<IconButton>(find.byKey(sendButtonKey)).onPressed, isNotNull);
+    });
+
+    test('the shipped default is about a second', () {
+      expect(kMinimumResponseDelay.inMilliseconds, inInclusiveRange(600, 1200));
     });
   });
 

@@ -451,6 +451,11 @@ Each phase has explicit acceptance criteria; do not advance until met.
   live-API integration test that skips when the server is down.
 - **Phase 7 — Testing + CI.** Python + Flutter tests; GitHub Actions.
   *Done when:* CI green on lint + tests for both.
+  ✅ Delivered: `.github/workflows/ci.yml` with five jobs — Python lint, Python tests
+  (CPU torch, cached corpus/model/embeddings), Flutter analyze+test, an Android **release**
+  build with a manifest assertion, and a repository-integrity job. Suite runtime cut from
+  344 s to 88 s. Dependencies split into `requirements.txt` (CUDA, dev) and
+  `requirements-cpu.txt` (CI and container) over a shared `requirements-base.txt`.
 - **Phase 8 — Deploy + docs.** Dockerize; deploy API; rewrite README with real numbers + demo.
   *Done when:* reproducible container; honest README; working demo path.
 

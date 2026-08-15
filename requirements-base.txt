@@ -1,0 +1,54 @@
+# Shared dependency pins — everything except torch (PRD §16).
+#
+# Do not install this directly. Pick the variant that matches the machine:
+#
+#   requirements.txt       CUDA torch, for the dev machine (PRD §16.1)
+#   requirements-cpu.txt   CPU torch, for CI and the container (PRD §20)
+#
+# torch is the only package that differs, so it lives in those two files and
+# everything else lives here. One list, no drift.
+#
+# --- retrieval / NLP ---
+sentence-transformers==5.7.0
+transformers==5.15.0
+tokenizers==0.22.2
+huggingface-hub==1.27.0
+safetensors==0.8.0
+rank-bm25==0.2.2
+
+# --- data / metrics ---
+# numpy 2.5.x is Python >=3.12 only; 2.4.6 is the newest line with cp311 wheels.
+numpy==2.4.6
+pandas==3.0.5
+pyarrow==25.0.1
+scipy==1.17.1
+scikit-learn==1.9.0
+
+# --- api ---
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+pydantic-settings==2.15.0
+slowapi==0.1.10
+
+# --- notebooks (EDA + experiments + training run + eval) ---
+jupyterlab==4.6.3
+ipykernel==7.3.0
+ipywidgets==8.1.8
+matplotlib==3.11.1
+
+# Real-time collaboration. Not for collaborating with people: it is a hard
+# requirement of the Jupyter MCP server (jupyter-collaboration>=5), which drives
+# the notebook against a live kernel -- see docs/jupyter-mcp.md.
+#
+# The MCP server itself is deliberately NOT installed here. It depends on
+# unpinned fastapi and uvicorn, which would silently bump the pins above and
+# break the Phase 6 API. `uvx` runs it in an isolated environment instead.
+#
+# jupyter-collaboration 5.x requires jupyterlab >=4.6,<5, which the pin above
+# satisfies. Installing it adds no upgrades to anything already pinned here.
+jupyter-collaboration==5.0.0
+
+# --- dev / test ---
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.16.3

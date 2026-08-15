@@ -1,75 +1,22 @@
-# COVID-19 Chatbot — pinned dependencies (PRD §16)
-#
-# Retrieval-only, fully local. No external LLM APIs, and no network calls at
-# inference time.
+# Dev machine dependencies — CUDA torch (PRD §16.1).
 #
 #   py -3.11 -m venv .venv
 #   .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
 #   ./.venv/bin/python -m pip install -r requirements.txt           # Linux
 #
-# Verify the GPU is actually wired up (PRD §16.1, a Phase 0 acceptance criterion):
+# Verify the GPU is wired up (a Phase 0 acceptance criterion):
 #   python -c "import torch; print(torch.cuda.is_available())"   -> True
 #
-# --- torch: CUDA build, NOT CPU-only (PRD §16.1) ---
-# Target: NVIDIA Quadro T2000 (Turing, sm_75, 4 GB VRAM) on Dell Precision 5550.
-# cu126 is the only CUDA variant publishing a 2.13.0 cp311 Windows wheel; cu128
-# and cu129 do not, so this pin is not arbitrary.
+# Target: NVIDIA Quadro T2000 (Turing, sm_75, 4 GB VRAM). cu126 is the only CUDA
+# variant publishing a 2.13.0 cp311 Windows wheel, so this pin is not arbitrary.
 #
-# The `+cu126` local version is load-bearing in the opposite direction to a CPU
-# pin: PEP 440 ranks `2.13.0+cu126` above a bare `2.13.0`, so naming it keeps
-# the resolver from silently drifting to whatever a future index prefers.
+# The `+cu126` local version is load-bearing: PEP 440 ranks `2.13.0+cu126` above
+# a bare `2.13.0`, so naming it keeps the resolver from drifting.
 #
-# The GPU's only job here is embedding the 7k-entry corpus, which takes ~5
-# seconds against roughly a minute on CPU -- a convenience, not a requirement.
-#
-# NOTE (PRD §20): serving needs no GPU at all; search is an exact NumPy product.
-# The Phase 8 container should install a CPU torch instead of this, or the image
-# carries ~2.5 GB of unused CUDA.
+# The GPU's only job is embedding the 7k-entry corpus (~5s, against roughly a
+# minute on CPU). Serving needs no GPU at all -- use requirements-cpu.txt there.
 --extra-index-url https://download.pytorch.org/whl/cu126
 
 torch==2.13.0+cu126
 
-# --- retrieval / NLP ---
-sentence-transformers==5.7.0
-transformers==5.15.0
-tokenizers==0.22.2
-huggingface-hub==1.27.0
-safetensors==0.8.0
-rank-bm25==0.2.2
-
-# --- data / metrics ---
-# numpy 2.5.x is Python >=3.12 only; 2.4.6 is the newest line with cp311 wheels.
-numpy==2.4.6
-pandas==3.0.5
-pyarrow==25.0.1
-scipy==1.17.1
-scikit-learn==1.9.0
-
-# --- api ---
-fastapi==0.141.1
-uvicorn[standard]==0.52.3
-pydantic-settings==2.15.0
-slowapi==0.1.10
-
-# --- notebooks (EDA + experiments + training run + eval) ---
-jupyterlab==4.6.3
-ipykernel==7.3.0
-ipywidgets==8.1.8
-matplotlib==3.11.1
-
-# Real-time collaboration. Not for collaborating with people: it is a hard
-# requirement of the Jupyter MCP server (jupyter-collaboration>=5), which drives
-# the notebook against a live kernel -- see docs/jupyter-mcp.md.
-#
-# The MCP server itself is deliberately NOT installed here. It depends on
-# unpinned fastapi and uvicorn, which would silently bump the pins above and
-# break the Phase 6 API. `uvx` runs it in an isolated environment instead.
-#
-# jupyter-collaboration 5.x requires jupyterlab >=4.6,<5, which the pin above
-# satisfies. Installing it adds no upgrades to anything already pinned here.
-jupyter-collaboration==5.0.0
-
-# --- dev / test ---
-pytest==9.1.1
-httpx==0.28.1
-ruff==0.16.3
+-r requirements-base.txt

@@ -16,11 +16,26 @@ import '../widgets/typing_indicator.dart';
 /// isn't reachable that way.
 const Key sendButtonKey = Key('chat-send-button');
 
+/// How long the "thinking" state stays on screen at minimum.
+///
+/// Not a delay added to the request — see [ChatScreenState._holdForMinimumDuration].
+/// Retrieval is fast enough (~25 ms) that without a floor the typing indicator
+/// renders for roughly one frame.
+const Duration kMinimumResponseDelay = Duration(milliseconds: 900);
+
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({this.apiService, super.key});
+  const ChatScreen({
+    this.apiService,
+    this.minimumResponseDelay = kMinimumResponseDelay,
+    super.key,
+  });
 
   /// Injected in tests; a real [ApiService] is built when omitted.
   final ApiService? apiService;
+
+  /// Minimum time the typing indicator is shown. Tests set this to zero so the
+  /// suite doesn't pay a second per interaction.
+  final Duration minimumResponseDelay;
 
   @override
   State<ChatScreen> createState() => ChatScreenState();
@@ -58,11 +73,17 @@ class ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
 
+    // Timed from the moment the request is *sent*, so the pacing below can
+    // subtract real network time rather than adding to it.
+    final elapsed = Stopwatch()..start();
+
     try {
       final response = await _api.predict(question);
+      await _holdForMinimumDuration(elapsed);
       if (!mounted) return;
       setState(() => _messages.add(ChatMessage.bot(response)));
     } on ApiException catch (e) {
+      await _holdForMinimumDuration(elapsed);
       if (!mounted) return;
       // The message is written for a user; `detail` stays out of the transcript.
       setState(() => _messages.add(ChatMessage.error(e.message, detail: e.detail)));
@@ -72,6 +93,24 @@ class ChatScreenState extends State<ChatScreen> {
         _scrollToBottom();
         _inputFocus.requestFocus();
       }
+    }
+  }
+
+  /// Keeps the "thinking" state on screen for a minimum length of time.
+  ///
+  /// Retrieval answers in about 25 ms, so without this the typing indicator
+  /// appears and vanishes inside a single frame. The result reads as a glitch
+  /// rather than as a reply, and gives no sense that anything was looked up.
+  ///
+  /// This pads *only the remainder*: it waits `minimum - elapsed`, so a request
+  /// that already took longer than the floor waits not at all. Real latency is
+  /// therefore never increased, and a slow or failing network is never made to
+  /// feel slower than it is. The API call itself is untouched — this is purely
+  /// presentation, applied after the response is already in hand.
+  Future<void> _holdForMinimumDuration(Stopwatch elapsed) async {
+    final remaining = widget.minimumResponseDelay - elapsed.elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
     }
   }
 
