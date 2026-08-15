@@ -8,7 +8,8 @@ The retriever is a locally-run bi-encoder over a vetted COVID-19 FAQ corpus, eva
 the COUGH retrieval benchmark with confidence intervals on every claim.
 
 > **Status: rebuild in progress.** Built against [`PRD.md`](PRD.md). The retrieval
-> pipeline and the API are complete (Phases 0–3, 5); the app, CI and deployment remain.
+> pipeline, the API and the Flutter client are complete (Phases 0–3, 5, 6); CI and
+> deployment remain.
 > Every number below is reproducible by `python -m src.evaluate` on the held-out test
 > split, and nothing is quoted that isn't.
 
@@ -171,7 +172,17 @@ uvicorn src.api:app --reload    # serve on :8000
 pytest                          # tests
 ```
 
-The Flutter client lives in [`app/`](app/) — see [`app/README.md`](app/README.md).
+The Flutter client lives in [`app/`](app/):
+
+```bash
+cd app
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000   # Android emulator
+flutter run                                                    # desktop/web default
+```
+
+It renders each answer with its source, a trust badge (`official` vs `community`), and the
+disclaimer — attribution the user can see, not just a field in the payload. Abstentions are
+visually distinct and carry no source. See [`app/README.md`](app/README.md).
 
 ## Roadmap
 
@@ -185,8 +196,8 @@ Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
 | 3 | Semantic retriever + threshold/abstention | ✅ |
 | 4 | Cross-encoder re-ranker (optional) | next |
 | 5 | FastAPI service | ✅ |
-| 6 | Flutter integration | next |
-| 7 | Tests + CI | |
+| 6 | Flutter integration | ✅ |
+| 7 | Tests + CI | next |
 | 8 | Docker, deploy, docs | |
 
 ## Not medical advice

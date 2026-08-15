@@ -80,7 +80,8 @@ JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
 - The GPU is used to embed the corpus (~5s for 7k entries). Serving needs no GPU.
 
 ## Working conventions
-- Code in `src/`; data artifacts in `data/`; model in `artifacts/`; tests in `tests/`; app in `app/`.
+- Code in `src/`; data artifacts in `data/`; config in `artifacts/`; tests in `tests/`;
+  Flutter client in `app/` (`flutter test` there; `flutter analyze` must stay clean).
 - Typical commands (align to PRD §17 as files are created):
   - `python -m src.prep` — build the KB + query splits from COUGH
   - `python -m src.evaluate` — MRR / P@k / Recall / nDCG on the test split
@@ -91,10 +92,11 @@ JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
 - When unsure between options, follow the **recommendations in PRD §22** unless told otherwise.
 
 ## Current status
-Phases 0–3 and 5 complete on branch `rebuild/retrieval-v1`, one commit per phase. The
-retrieval pipeline and the FastAPI service are done; **next is Phase 6 (Flutter
-integration)**. Phase 4 (cross-encoder re-ranker) is optional and was skipped in favour of
-shipping the API — it remains available. Follow PRD §18 and state which phase you're in.
+Phases 0–3, 5 and 6 complete on branch `rebuild/retrieval-v1`, one commit per phase. The
+retrieval pipeline, the FastAPI service and the Flutter client are done end to end;
+**next is Phase 7 (tests + CI)**, then Phase 8 (Docker + deploy). Phase 4 (cross-encoder
+re-ranker) is optional and was skipped in favour of shipping — it remains available.
+Follow PRD §18 and state which phase you're in.
 
 ## Before finishing any change
 - Does it respect the five hard constraints?

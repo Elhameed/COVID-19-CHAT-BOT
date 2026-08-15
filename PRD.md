@@ -445,6 +445,10 @@ Each phase has explicit acceptance criteria; do not advance until met.
   ✅ Delivered in `src/api.py`; median warm latency 25 ms against the ~300 ms target.
 - **Phase 6 — Flutter integration.** Configurable URL, cleartext/ATS, new schema, UX fixes, rebrand.
   *Done when:* app talks to API on emulator + device; renders answer/source/disclaimer/abstention.
+  ✅ Delivered: `lib/` restructured into models/services/screens/widgets, base URL via
+  `--dart-define` with a per-platform default, `INTERNET` moved to the main manifest,
+  network-security-config and iOS ATS scoped to local addresses, and 32 widget tests plus a
+  live-API integration test that skips when the server is down.
 - **Phase 7 — Testing + CI.** Python + Flutter tests; GitHub Actions.
   *Done when:* CI green on lint + tests for both.
 - **Phase 8 — Deploy + docs.** Dockerize; deploy API; rewrite README with real numbers + demo.
