@@ -461,9 +461,10 @@ class PairedComparison:
     """Whether one retriever genuinely beats another, with error bars.
 
     A raw delta between two systems on 181 queries is not evidence on its own.
-    This exists because Phase 4 produced a +0.02 MRR@10 gain whose confidence
-    interval spanned zero, and reporting the delta without the interval would
-    have been exactly the sort of claim this project was rebuilt to avoid.
+    On 181 test queries the resolution limit is roughly +/-0.03 MRR@10, so a
+    delta below that is not evidence of anything. Reporting one without an
+    interval would be exactly the sort of claim this project was rebuilt to
+    avoid.
     """
 
     metric: str
@@ -691,7 +692,7 @@ def main(argv: list[str] | None = None) -> int:
     print(format_table(results))
 
     if args.split == "test":
-        print("\nTest split only -- this is the number Phases 3 and 4 must beat (PRD 8.4).")
+        print("\nTest split only -- the split every reported result comes from (PRD 8.5).")
 
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)

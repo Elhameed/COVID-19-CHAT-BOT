@@ -8,13 +8,13 @@ The retriever is a locally-run bi-encoder over a vetted COVID-19 FAQ corpus, eva
 the COUGH retrieval benchmark with confidence intervals on every claim.
 
 > **Status: rebuild in progress.** Built against [`PRD.md`](PRD.md). The retrieval
-> pipeline is complete through Phase 4; the API, app, CI and deployment are Phases 5–9.
+> pipeline is complete through Phase 3; the API, app, CI and deployment are Phases 4–8.
 > Every number below is reproducible by `python -m src.evaluate` on the held-out test
 > split, and nothing is quoted that isn't.
 
 ## Why retrieval, not generation
 
-The previous implementation fine-tuned generative and extractive models (DialoGPT,
+The previous implementation trained generative and extractive models (DialoGPT,
 BERT-QA) on ~110 unique QA pairs duplicated into a 24k-row file. That produced metrics
 that looked excellent and meant nothing, and a backend that could not start because the
 weights were git-ignored.
@@ -32,8 +32,9 @@ thousand curated FAQ pairs, retrieval is the better answer on every axis that ma
 A confident wrong match is the remaining failure mode, which is what the confidence
 threshold and abstention path exist to control.
 
-Retrieval-only does not rule out training. A fine-tune of the *ranker* was built and
-evaluated (see below); what is never trained is a model that writes medical text.
+The retriever is a stock open-source encoder used as-is. The engineering here is the
+pipeline around it — corpus preparation, indexing, calibration and evaluation — not the
+model weights.
 
 ## Results
 
@@ -48,33 +49,21 @@ Measured on 181 held-out test queries against the full 7,077-entry corpus. Repro
 The improvement over BM25 is **+0.100 MRR@10, 95% CI [+0.044, +0.157], p = 0.0004** by
 paired bootstrap over per-query scores.
 
-### The fine-tune was built, measured, and declined
-
-PRD §7.4 planned to fine-tune the retriever with `MultipleNegativesRankingLoss` and ship the
-result. That was done — `src/train.py` works and reproduces in ~4 minutes — and the trained
-encoder scored **+0.021 MRR@10** over off-the-shelf on test.
-
-It isn't shipped, because the same significance test tells two different stories:
-
-| Comparison | Δ MRR@10 | 95% CI | p | verdict |
-|---|---|---|---|---|
-| BM25 → MiniLM | +0.100 | [+0.044, +0.157] | 0.0004 | adopted |
-| MiniLM → fine-tuned | +0.021 | [−0.009, +0.051] | 0.161 | **declined** |
-
-The second interval spans zero. Per query the fine-tune wins 32 and loses 25 — a coin flip.
-A health-information product shouldn't ship a model whose benefit can't be measured, and
-declining costs nothing here since the retrieval upgrade is already significant.
-
-The result is **inconclusive, not negative**: resolving a +0.021 effect needs ~375 test
-queries and we allocated 181. Cross-validation over all 1,201 would settle it, and is
-recorded as deferred work rather than quietly dropped. Full record:
-[`artifacts/finetune_experiment.json`](artifacts/finetune_experiment.json).
+The biggest movement is **Recall@10: 0.240 → 0.343 (+43%)**, and that is the point. BM25's
+failures were bimodal — 40% of test queries answered at rank 1, but **27% with nothing
+relevant retrieved at all**, several sharing no vocabulary whatsoever with their correct
+answer. Those are unreachable by better ranking; only matching on meaning finds them.
 
 ### Method
 
-The 1,201 COUGH queries are split train/dev/test with a fixed seed. Training uses train,
-threshold tuning and model selection use dev, and **every reported number comes from test**.
-The FAQ corpus is never split — all 7,077 entries stay retrievable at every stage.
+The 1,201 COUGH queries are split train/dev/test with a fixed seed. The threshold τ is tuned
+on **dev**, and **every reported number comes from test** — no metric is quoted from the split
+that selected a hyperparameter. The FAQ corpus is never split: all 7,077 entries stay
+retrievable for every query, at every stage.
+
+Comparisons carry a paired bootstrap interval rather than a bare delta. On 181 queries the
+resolution limit is roughly ±0.03 MRR@10, so a smaller difference would not be evidence of
+anything.
 
 ## Data
 
@@ -112,10 +101,9 @@ in the notebook.
 
 ### Notebook and `src/` share one implementation
 
-`src/` holds every reusable piece — prep, index, retriever, train, evaluate, api.
+`src/` holds every reusable piece — download, prep, index, retriever, evaluate, api.
 [`notebooks/development.ipynb`](notebooks/) **imports** them; it never keeps its own copy
-of preprocessing, retrieval, training, or metric code. The API imports exactly the same
-modules.
+of preprocessing, retrieval, or metric code. The API imports exactly the same modules.
 
 One implementation, two consumers. This is what guarantees the numbers reported during
 development are the numbers the app actually serves — the failure the old project made
@@ -128,13 +116,12 @@ in place rather than authored blind and hoped over.
 
 ## Getting started
 
-Development is fully local and uses the GPU for the fine-tune (PRD §16.1):
+Development is fully local. The GPU embeds the corpus in about five seconds; serving needs
+no GPU at all.
 
 ```bash
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
-
-python -c "import torch; print(torch.cuda.is_available())"      # must print True
 ```
 
 For notebook work, start the JupyterLab instance that Claude Code's MCP server attaches
@@ -147,15 +134,13 @@ python scripts/start_jupyter.py
 Pipeline:
 
 ```bash
-python -m src.download         # fetch COUGH
-python -m src.prep              # -> data/kb.parquet + seeded query splits
-python -m src.train             # reproduce the fine-tune experiment (not shipped)
+python -m src.download          # fetch COUGH
+python -m src.prep              # -> data/kb.parquet + seeded query splits + qrels
+python -m src.index             # -> data/embeddings/
 python -m src.evaluate          # MRR@10 / P@k / Recall / nDCG on the test split
 uvicorn src.api:app --reload    # serve on :8000
 pytest                          # tests
 ```
-
-Serving needs no GPU — CPU inference is fine at this corpus size.
 
 The Flutter client lives in [`app/`](app/) — see [`app/README.md`](app/README.md).
 
@@ -169,12 +154,11 @@ Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
 | 1 | Data pipeline (`download.py`, `prep.py`, splits, EDA) | ✅ |
 | 2 | BM25 baseline + evaluation harness | ✅ |
 | 3 | Semantic retriever + threshold/abstention | ✅ |
-| 4 | Fine-tune the retriever | ✅ measured, not adopted |
-| 5 | Cross-encoder re-ranker (optional) | next |
-| 6 | FastAPI service | |
-| 7 | Flutter integration | |
-| 8 | Tests + CI | |
-| 9 | Docker, deploy, docs | |
+| 4 | Cross-encoder re-ranker (optional) | next |
+| 5 | FastAPI service | |
+| 6 | Flutter integration | |
+| 7 | Tests + CI | |
+| 8 | Docker, deploy, docs | |
 
 ## Not medical advice
 

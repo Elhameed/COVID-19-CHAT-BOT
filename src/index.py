@@ -75,7 +75,7 @@ def cache_path(model_name: str, field: str, embeddings_dir: Path = EMBEDDINGS_DI
     """Filesystem-safe cache filename for a model/field pair.
 
     `model_name` may be a Hub id ("BAAI/bge-base-en-v1.5") or a local directory
-    ("artifacts/encoder", or a Windows absolute path), so every separator and
+    (a local directory, or a Windows absolute path), so every separator and
     drive colon has to be folded out.
     """
     slug = model_name

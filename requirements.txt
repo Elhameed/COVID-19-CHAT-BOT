@@ -1,7 +1,7 @@
 # COVID-19 Chatbot — pinned dependencies (PRD §16)
 #
-# Retrieval-only, fully local. No external LLM APIs. Fine-tuning the retriever
-# (Option B, PRD §7.4) runs locally on the dev machine's GPU.
+# Retrieval-only, fully local. No external LLM APIs, and no network calls at
+# inference time.
 #
 #   py -3.11 -m venv .venv
 #   .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
@@ -19,8 +19,12 @@
 # pin: PEP 440 ranks `2.13.0+cu126` above a bare `2.13.0`, so naming it keeps
 # the resolver from silently drifting to whatever a future index prefers.
 #
-# NOTE (PRD §20): serving needs no GPU. The Phase 9 container should install a
-# CPU torch instead of this, or the image carries ~2.5 GB of unused CUDA.
+# The GPU's only job here is embedding the 7k-entry corpus, which takes ~5
+# seconds against roughly a minute on CPU -- a convenience, not a requirement.
+#
+# NOTE (PRD §20): serving needs no GPU at all; search is an exact NumPy product.
+# The Phase 8 container should install a CPU torch instead of this, or the image
+# carries ~2.5 GB of unused CUDA.
 --extra-index-url https://download.pytorch.org/whl/cu126
 
 torch==2.13.0+cu126
@@ -32,12 +36,6 @@ tokenizers==0.22.2
 huggingface-hub==1.27.0
 safetensors==0.8.0
 rank-bm25==0.2.2
-
-# --- training (Option B: fine-tune the bi-encoder) ---
-# Direct dependencies, not incidental: SentenceTransformerTrainer is built on
-# transformers.Trainer (accelerate) and takes datasets.Dataset as its input.
-accelerate==1.14.0
-datasets==5.0.1
 
 # --- data / metrics ---
 # numpy 2.5.x is Python >=3.12 only; 2.4.6 is the newest line with cp311 wheels.

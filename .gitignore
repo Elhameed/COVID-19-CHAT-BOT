@@ -57,34 +57,12 @@ data/embeddings/
 *.h5
 *.ckpt
 
-# --- EXCEPTION: the trained-model artifact (PRD §7.4, §22 #5) ------------------
-# artifacts/encoder/ is the exported fine-tuned bi-encoder that src/api.py loads.
-# It is a deliverable, not a cache, and the rules above would otherwise swallow
-# its model.safetensors.
+# No model weights are committed. The encoder is a stock Hugging Face model
+# fetched on first use, and the KB embeddings above are derived data.
 #
-# This is not a hypothetical. The previous implementation's .gitignore was the
-# single line `*.safetensors`; the weights never reached the repo, and
-# `from_pretrained("./model")` raised OSError on every fresh clone. The backend
-# could not start. Do not remove these negations without re-reading PRD §22 #5.
-#
-# MiniLM exports at ~90 MB, which is fine to vendor. If we switch to bge-base
-# (~440 MB), revisit: fetch it as a release asset or via Git LFS instead.
-!artifacts/
-!artifacts/**/
-!artifacts/**/*.safetensors
-!artifacts/**/*.bin
-!artifacts/**/*.pt
-
-# Training scratch under artifacts/ stays out (checkpoints, optimizer state).
-# Phase 4's run produced ~700 MB of these; only the decision record is committed.
-artifacts/**/checkpoint-*/
-artifacts/**/optimizer.pt
-artifacts/**/scheduler.pt
-artifacts/**/rng_state.pth
-artifacts/_train_checkpoints/
-artifacts/_sweep/
-artifacts/train_report.json
-# ------------------------------------------------------------------------------
+# Kept as a deliberate reminder: the previous implementation's entire .gitignore
+# was the single line `*.safetensors`, its weights never reached the repo, and
+# `from_pretrained("./model")` raised OSError on every fresh clone.
 
 # --- Hugging Face cache ---
 .cache/

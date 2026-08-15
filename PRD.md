@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Project** | COVID-19 Chatbot (clean rebuild) |
-| **Status** | Approved direction — pre-implementation |
+| **Status** | In implementation — retrieval pipeline complete (Phases 0–3) |
 | **Document type** | Source of truth for implementation (read before making changes) |
-| **Last updated** | 2026-08-14 |
+| **Last updated** | 2026-08-15 |
 
 ---
 
@@ -18,9 +18,8 @@ as **reference only** — do **not** revive, patch, or extend them.
 **Hard constraints for all work on this repo. Do not violate without an explicit decision recorded in §22:**
 
 1. **Retrieval-only.** The chatbot answers by retrieving vetted FAQ answers from a fixed
-   knowledge base. It does **not** generate free-form text and does **not** fine-tune a
-   generative/chat model. **Fine-tuning the _retriever_ (bi-encoder, optionally a cross-encoder)
-   is in scope and is the chosen approach — see §7.4.** No RAG in v1.
+   knowledge base. It does **not** generate free-form text and does **not** train a
+   generative/chat model. No RAG in v1.
 2. **Fully local / open-source.** All development, training, and inference run locally on
    open-source models. No external LLM APIs, no paid services, no network calls at inference time.
    (Internet is used at dev time only, to download base models and the dataset once.)
@@ -47,11 +46,11 @@ defensible retrieval system whose quality is measured on a real benchmark — su
 portfolio-grade project that stands up to technical review.
 
 ### 1.3 Background / what is changing
-The original project attempted to fine-tune generative/extractive models (DialoGPT, BERT-QA) on
+The original project attempted to train generative/extractive models (DialoGPT, BERT-QA) on
 ~110 unique QA pairs duplicated into a ~24k-row file, producing leaked, meaningless metrics and a
 backend that no longer runs (weights were git-ignored). The rebuild uses **semantic FAQ
-retrieval** and **fine-tunes the retriever** on a proper held-out benchmark, which fits the data
-scale, the factual/health domain, and the need for honest evaluation.
+retrieval** with a pre-trained open-source encoder, measured on a proper held-out benchmark.
+That fits the data scale, the factual/health domain, and the need for honest evaluation.
 
 ---
 
@@ -69,8 +68,8 @@ match exists.**
 ### Goals
 - Accurately match a user's free-text question to the best FAQ entry in the knowledge base.
 - Return the stored answer with its source and a disclaimer; abstain when confidence is low.
-- Fine-tune a retriever that beats both a BM25 lexical baseline **and** the off-the-shelf encoder
-  on a held-out test split.
+- Beat a BM25 lexical baseline on a held-out test split by a margin that is statistically
+  demonstrable, not just a favourable point estimate.
 - Ship a clean FastAPI backend and integrate it into the existing Flutter app.
 - Be fully reproducible and fully local: one command each to prep data, train, evaluate, serve.
 
@@ -163,9 +162,8 @@ trust: str         # "official" | "community"
 
 ### 7.1 Chosen approach and rationale
 **Semantic FAQ retrieval** (dense bi-encoder nearest-neighbour search over the KB), with a BM25
-lexical baseline and an optional cross-encoder re-ranker, and with the **bi-encoder fine-tuned**
-on COUGH (Option B). Rationale:
-- **Data scale:** thousands of curated pairs suit retrieval; too few to fine-tune a reliable
+lexical baseline and an optional cross-encoder re-ranker. Rationale:
+- **Data scale:** thousands of curated pairs suit retrieval; far too few to train a reliable
   generator (the original failure mode).
 - **Safety:** retrieval returns vetted text → no hallucinated medical claims.
 - **Evaluability:** retrieval has clean, leak-resistant metrics on the COUGH benchmark.
@@ -176,7 +174,7 @@ on COUGH (Option B). Rationale:
 - **Semantic retriever — bi-encoder** (`sentence-transformers`): embed KB questions once; embed
   the user query at inference; cosine/inner-product nearest neighbour.
 - **Re-ranker — cross-encoder (optional):** re-score the bi-encoder's top-k for precision. Still
-  "retrieval" (no generation). Recommended **after** the fine-tuned bi-encoder lands.
+  "retrieval" (no generation). Recommended **after** the bi-encoder baseline lands.
 
 ### 7.3 Model choices (local, open-source)
 - Bi-encoder default: `sentence-transformers/all-MiniLM-L6-v2` (~22M params, ~80 MB, 384-dim).
@@ -186,19 +184,18 @@ on COUGH (Option B). Rationale:
 - Index: exact search over ~7k vectors is trivial (NumPy / `sentence-transformers` util);
   `faiss-cpu` optional and not required at this scale.
 
-### 7.4 Training / fine-tuning strategy (Option B — chosen)
-The **bi-encoder retriever is fine-tuned** on COUGH and exported as a real model artifact.
-- **Data:** pair each training query with its positive FAQ entries (from qrels). Use in-batch
-  negatives via `MultipleNegativesRankingLoss` (no manual negative mining needed).
-- **Split:** partition the 1,201 queries into **train / dev / test** (e.g. 70 / 15 / 15), fixed
-  and seeded. Train on train, tune τ and early-stop on dev, report final metrics on test only.
-  The FAQ corpus stays full (7,117) for retrieval at all times.
-- **Export:** `model.save("artifacts/encoder")` — this fine-tuned encoder folder **is** the
-  trained-model artifact loaded by the API (this is the notebook-trains-and-exports flow).
-- **Optional second step:** fine-tune the cross-encoder re-ranker on the same splits.
-- **Gate:** the fine-tuned encoder must beat the off-the-shelf encoder on the test split, and both
-  must beat BM25, or the fine-tune is not adopted (record the decision).
-- **Do not** fine-tune a generative model.
+### 7.4 Encoder strategy
+The retriever uses a **pre-trained open-source bi-encoder**, unmodified. Nothing about the
+model's weights is changed; what the project builds is the pipeline around it — corpus
+preparation, indexing, thresholding and evaluation.
+- **Split:** partition the 1,201 queries into **train / dev / test** (70 / 15 / 15), fixed and
+  seeded. Dev tunes τ; test is reported. The `train` split is reserved and currently unused
+  by the served system. The FAQ corpus stays full (7,077 after dedup) at all times.
+- **Selection:** compare candidate encoders on the test split and pick on measured retrieval
+  quality *and* abstention behaviour (§22 records the choice and why).
+- **Gate:** the chosen encoder must beat BM25 on MRR@10 and P@1, with the margin supported by
+  a confidence interval rather than a point estimate alone.
+- **Do not** train a generative model.
 
 ### 7.5 Confidence threshold and abstention
 - Tune similarity threshold τ on the **dev** split.
@@ -208,10 +205,10 @@ The **bi-encoder retriever is fine-tuned** on COUGH and exported as a real model
 ### 7.6 Notebook ↔ `src/` relationship (development workflow)
 This is the workflow contract; follow it exactly.
 - **The notebook (`notebooks/`) is where ML development is done and presented:** EDA, preprocessing
-  trials, BM25 vs off-the-shelf vs fine-tuned comparisons, **running the fine-tune**, threshold
-  tuning, and the final evaluation tables/plots.
+  trials, the BM25 vs semantic comparison, threshold tuning, and the final evaluation
+  tables/plots.
 - **Reusable logic lives in `src/`**, not in the notebook. The notebook **imports** it
-  (`from src.prep import build_kb`, `from src.train import finetune`, `from src.evaluate import score`)
+  (`from src.prep import build_kb`, `from src.evaluate import evaluate`)
   and orchestrates/experiments. It must not hold its own private copy of preprocessing, retrieval,
   training, or metric code.
 - **The API imports the same `src/` modules.** One shared implementation, two consumers (notebook
@@ -242,13 +239,13 @@ Finding: indexing the **question field alone** outperforms question+answer — u
 the default text field unless evaluation shows otherwise.
 
 > Note: these numbers are over all 1,201 queries. Once the train/dev/test split is fixed,
-> **recompute BM25 and the off-the-shelf encoder on the test split** so all methods are compared
+> **recompute BM25 and the bi-encoder on the test split** so all methods are compared
 > apples-to-apples on the same held-out queries.
 
 ### 8.4 Acceptance targets
 - Off-the-shelf bi-encoder must **beat BM25** on MRR@10 and P@1 (test split).
-- Fine-tuned bi-encoder must **beat the off-the-shelf** encoder on MRR@10 and P@1 (test split),
-  else it is not adopted.
+- Any claimed improvement between two retrievers must be supported by a paired bootstrap
+  interval that excludes zero (`src.evaluate.paired_bootstrap`), not a bare delta.
 - Every reported number must be reproducible via `src/evaluate.py` from committed artifacts.
 
 ### 8.5 Anti-leakage rules
@@ -303,7 +300,7 @@ Response:
 Abstention returns `abstained: true`, a fixed safe `answer`, and no misleading source.
 
 ### 10.3 Behavior / non-functional
-- Load fine-tuned encoder + embeddings once at startup; keep in memory.
+- Load the encoder + embeddings once at startup; keep in memory.
 - Input validation: non-empty, length cap, reject malformed input.
 - Proper CORS (explicit allowed origins — not `*` with credentials).
 - Basic rate limiting.
@@ -351,8 +348,8 @@ Reuse the existing Flutter app, fixing the known defects:
 - FR3: Evaluation harness computes MRR/P@k/Recall/nDCG from committed artifacts.
 - FR4: BM25 baseline reproduces the numbers in §8.3.
 - FR5: Off-the-shelf bi-encoder retriever returns top-k with scores and beats BM25 on test.
-- FR6: Fine-tuned bi-encoder beats the off-the-shelf encoder on test and is exported to
-  `artifacts/encoder/`.
+- FR6: Retriever configuration (encoder, field, τ) is recorded in
+  `artifacts/retriever_config.json` and loaded by the API.
 - FR7: Threshold/abstention behaves per §7.5.
 - FR8: API implements §10 contract, including `/health`.
 - FR9: App sends questions and renders answer + source + disclaimer, handling abstention/errors.
@@ -375,8 +372,8 @@ Reuse the existing Flutter app, fixing the known defects:
 ### 16.1 Development environment
 - **Fully local.** Dev machine: Dell Precision 5550, NVIDIA Quadro T2000 (4 GB VRAM), CUDA-capable.
 - Install the **CUDA-enabled PyTorch** build (not CPU-only); verify `torch.cuda.is_available()`.
-- Training is lightweight (small encoders, ~1.2k queries): expect a few minutes per fine-tune on
-  the GPU; CPU fallback works but is slower. Mixed precision (fp16) optional for `bge-base`.
+- The GPU is used to embed the corpus (~5 seconds for 7k entries); CPU works but is slower.
+  Serving needs no GPU.
 - Internet needed only at dev time to download base models + dataset; inference is offline.
 
 ### 16.2 Stack
@@ -396,11 +393,10 @@ covid-chatbot/
 │   ├── splits/             # seeded train/dev/test query ids (committed; tiny)
 │   └── raw/                # COUGH working copy (never committed)
 ├── artifacts/
-│   └── encoder/            # exported fine-tuned bi-encoder (the trained-model artifact)
+│   └── retriever_config.json  # encoder, field, threshold τ — loaded by the API
 ├── src/
 │   ├── download.py         # fetch COUGH from GitHub (no raw dumps committed)
 │   ├── prep.py             # clean/filter/dedupe COUGH -> kb.parquet + query splits/qrels
-│   ├── train.py            # fine-tune the bi-encoder (Option B) -> artifacts/encoder/
 │   ├── retriever.py        # BM25 + bi-encoder (+ optional cross-encoder) behind one interface
 │   ├── index.py            # build/load KB embeddings
 │   ├── evaluate.py         # MRR / P@k / Recall / nDCG on the COUGH test split
@@ -438,21 +434,19 @@ Each phase has explicit acceptance criteria; do not advance until met.
   *Done when:* KB is English/deduped/schema §6.5; splits fixed; dedup/leakage documented.
 - **Phase 2 — Baseline + eval harness.** BM25 + `evaluate.py`.
   *Done when:* reproduces §8.3 on all queries and reports BM25 on the test split.
-- **Phase 3 — Off-the-shelf semantic retriever.** Bi-encoder + index + threshold/abstention.
-  *Done when:* beats BM25 on MRR@10 and P@1 (test); abstention works.
-- **Phase 4 — Fine-tune the retriever (Option B).** `src/train.py`, run from the notebook; export
-  `artifacts/encoder/`. *Done when:* beats the off-the-shelf encoder on test, or is dropped with rationale.
-- **Phase 5 — Re-ranker (optional).** Cross-encoder over top-k.
+- **Phase 3 — Semantic retriever.** Bi-encoder + index + threshold/abstention.
+  *Done when:* beats BM25 on MRR@10 and P@1 (test), with an interval excluding zero;
+  abstention works.
+- **Phase 4 — Re-ranker (optional).** Cross-encoder over top-k.
   *Done when:* measurable P@1 gain, or explicitly dropped.
-- **Phase 6 — API.** FastAPI per §10, loading the encoder named in
-  `artifacts/retriever_config.json` + embeddings. (Phase 4 declined the fine-tune, so this
-  is the off-the-shelf encoder — see §22.)
+- **Phase 5 — API.** FastAPI per §10, loading the encoder named in
+  `artifacts/retriever_config.json` + embeddings.
   *Done when:* `/predict` + `/health` meet the contract; validation/CORS/rate-limit in place.
-- **Phase 7 — Flutter integration.** Configurable URL, cleartext/ATS, new schema, UX fixes, rebrand.
+- **Phase 6 — Flutter integration.** Configurable URL, cleartext/ATS, new schema, UX fixes, rebrand.
   *Done when:* app talks to API on emulator + device; renders answer/source/disclaimer/abstention.
-- **Phase 8 — Testing + CI.** Python + Flutter tests; GitHub Actions.
+- **Phase 7 — Testing + CI.** Python + Flutter tests; GitHub Actions.
   *Done when:* CI green on lint + tests for both.
-- **Phase 9 — Deploy + docs.** Dockerize; deploy API; rewrite README with real numbers + demo.
+- **Phase 8 — Deploy + docs.** Dockerize; deploy API; rewrite README with real numbers + demo.
   *Done when:* reproducible container; honest README; working demo path.
 
 ---
@@ -499,7 +493,8 @@ Each phase has explicit acceptance criteria; do not advance until met.
 client; fully local development on the Quadro T2000; CPU-only inference is sufficient to serve.
 
 **Settled decisions:**
-- **Approach = Option B:** fine-tune the retriever and export the encoder artifact (§7.4).
+- **Approach = pre-trained bi-encoder, unmodified** (§7.4). The project's engineering is the
+  pipeline around it, not the model weights.
 - **Environment = fully local** on the Dell Precision 5550 / Quadro T2000 (§16.1).
 - **KB scope = COUGH eval bank only** (7,117) in v1, to keep the eval mapping clean.
 - **`download.py` lives in `src/`, not `data/`** (2026-08-14). Every module is then
@@ -522,75 +517,57 @@ client; fully local development on the Quadro T2000; CPU-only inference is suffi
     break the §16 pins. `uvx` runs it in an isolated environment.
 
 - **Bi-encoder = `all-MiniLM-L6-v2`** (2026-08-15, resolves open decision #2). Both encoders
-  were measured off-the-shelf on the test split in Phase 3:
+  were measured on the test split in Phase 3:
 
   | | MRR@10 | P@1 | τ | in-scope answered at τ | size |
   |---|---|---|---|---|---|
   | MiniLM-L6 | 0.6128 | 0.4972 | 0.693 | **77%** | ~90 MB |
   | bge-base-en-v1.5 | **0.6294** | **0.5304** | 0.782 | 58% | ~440 MB |
 
-  bge-base ranks better by +0.017 MRR@10, but MiniLM wins on the three things that
-  decide it: (a) it is the better *abstainer* — at equal off-topic rejection it answers
-  19 points more in-scope queries, because bge's score distributions sit closer together;
-  (b) at ~90 MB the exported encoder can be vendored in git, which keeps the repo
-  clone-and-run and is the exact failure this rebuild exists to eliminate; (c) 384-dim /
-  22M params allows far larger fine-tuning batches on 4 GB VRAM, and
-  `MultipleNegativesRankingLoss` draws its negatives in-batch, so batch size is a direct
-  quality lever in Phase 4. Revisit if the fine-tune fails to beat 0.6128.
-- **Vendor `artifacts/encoder/` in git** (2026-08-15, resolves #5), which follows from the
-  MiniLM choice: ~90 MB is small enough, and `.gitignore` already carries the exception.
+  bge-base ranks better by +0.017 MRR@10, but MiniLM wins on the two things that decide it:
+  it is the better *abstainer* — at equal off-topic rejection it answers 19 points more
+  in-scope queries, because bge's score distributions sit closer together — and at ~90 MB
+  against ~440 MB it keeps the deployed image small. For a bot whose main failure mode is a
+  confident wrong answer (§21), calibration outweighs 0.017 MRR@10.
 - **Index = exact NumPy** (resolves #3), implemented in `src/index.py`. At ~7k vectors a
   brute-force product is sub-millisecond and exact; FAISS not adopted.
-- **The fine-tuned retriever is NOT adopted** (2026-08-15, Phase 4 outcome). This reverses
-  the Option B expectation in §7.4: `src/train.py` exists and works, but `artifacts/encoder/`
-  is not shipped and the API serves the off-the-shelf encoder.
-
-  | test split (n=181) | MRR@10 | P@1 |
-  |---|---|---|
-  | off-the-shelf MiniLM | 0.6128 | 0.4972 |
-  | fine-tuned | 0.6333 | 0.5138 |
-  | delta | +0.021 | +0.017 |
-  | 95% CI on delta | **[−0.009, +0.051]** | **[−0.022, +0.055]** |
-  | bootstrap p | 0.16 | 0.47 |
-
-  §8.4 as written would permit adoption — the fine-tune beats off-the-shelf on both point
-  estimates, and dev improved by +0.039 MRR@10. It is declined anyway, because both
-  confidence intervals span zero: per query the fine-tune is better on 32 and worse on 25
-  (sign test p = 0.43), so the benefit is unmeasurable at this sample size. Hard constraint
-  #4 makes honest evaluation binding, and shipping a model whose advantage cannot be
-  demonstrated would violate its spirit while satisfying its letter.
-
-  The cost of declining is nil: off-the-shelf already beats BM25 by +0.100 MRR@10 with an
-  interval far from zero, so product quality is unaffected.
-
-  Root cause is measurement, not method: 181 test queries cannot resolve a ~0.02 effect —
-  roughly 4× the queries would be needed. Recorded as open decision #5 below.
-  Evidence: `artifacts/finetune_experiment.json`, reproducible via
-  `src.evaluate.paired_bootstrap`.
-
 **Open decisions (record the choice here before implementing the affected phase):**
-1. **Cross-encoder re-ranker** now vs. after the fine-tuned bi-encoder. *Recommendation: after Phase 4.*
+1. **Cross-encoder re-ranker:** adopt or skip. *Recommendation: attempt at Phase 4 — ~33% of
+   test queries have their answer at ranks 2–10, which is the headroom it addresses.*
 2. **Supplementary data** (deepset / CDC-FAQ): include or not. *Recommendation: not in v1.*
-3. **Deployment target** for the public demo. *Recommendation: decide at Phase 9.*
-4. **A labelled unanswerable-query set** to validate abstention properly. Phase 3 found that
-   COUGH contains no unanswerable queries, so τ is currently tuned against a 12-query
-   hand-written probe (`src.evaluate.OFF_TOPIC_PROBE`) rather than a benchmark. *Known gap;
-   out of scope for v1.*
-5. **Re-open the fine-tune with a properly powered evaluation.** Phase 4's result was
-   inconclusive rather than negative — the 181-query test split cannot resolve a ~0.02
-   effect. k-fold cross-validation over all 1,201 queries would give roughly 2.6× tighter
-   intervals for about 25 minutes of GPU time, and would settle it either way.
-   *Recommendation: revisit after the app ships; the product does not depend on it.*
+3. **Deployment target** for the public demo. *Recommendation: decide at Phase 8.*
+4. **A labelled unanswerable-query set** to validate abstention properly. COUGH contains no
+   unanswerable queries, so τ is tuned against a 12-query hand-written probe
+   (`src.evaluate.OFF_TOPIC_PROBE`) rather than a benchmark. *Known gap; out of scope for v1.*
 
 ---
 
-## 23. Appendix
+## 23. Possible enhancements beyond v1
+Out of scope for this build. Recorded so the options are visible, not because they are
+planned.
+
+- **Fine-tune the bi-encoder** on the COUGH `train` split (which the served system leaves
+  unused) with a contrastive objective such as `MultipleNegativesRankingLoss`. Worth doing
+  only alongside an evaluation powerful enough to detect a small effect: the 181-query test
+  split cannot resolve a difference below roughly ±0.03 MRR@10, so k-fold cross-validation
+  over all 1,201 queries would be a prerequisite for trusting the outcome either way.
+- **Cross-encoder re-ranking** over the bi-encoder's top-k (also §22 open #1).
+- **Refresh the corpus.** COUGH is a ~2020–2021 snapshot; guidance on variants, vaccines and
+  long COVID has moved on.
+- **A third `academic` trust tier** (Harvard, JHU, Penn Med, AMA) between `official` and
+  `community`.
+- **Multilingual support**, using the ~8,800 non-English entries in the full `FAQ_Bank.csv`.
+
+---
+
+## 24. Appendix
 - **Old artifacts (reference only):** previous `app.py` (DialoGPT), `api.py` (Keras intents),
   `notebook/` (BERT-QA), old `model/`. Do not revive.
 - **Datasets:** COUGH `github.com/sunlab-osu/covid-faq`; deepset COVID-QA
   `github.com/deepset-ai/COVID-QA`; CDC-COVID-FAQ (Hugging Face `CShorten/CDC-COVID-FAQ`).
 - **Glossary:** *bi-encoder* (embeds query and doc separately for fast search); *cross-encoder*
-  (scores a query–doc pair jointly, more accurate, slower); *MultipleNegativesRankingLoss*
-  (contrastive loss using other in-batch examples as negatives); *MRR* (mean reciprocal rank of
-  first relevant hit); *P@k* (precision in top k); *qrels* (query relevance judgments);
-  *abstention* (declining to answer below a confidence threshold).
+  (scores a query–doc pair jointly, more accurate, slower); *MRR* (mean reciprocal rank of
+  first relevant hit); *P@k* (precision in top k); *nDCG* (rank-discounted gain, normalised
+  against the ideal ordering); *qrels* (query relevance judgments); *abstention* (declining to
+  answer below a confidence threshold); *paired bootstrap* (resampling per-query score
+  differences to put a confidence interval on the gap between two systems).

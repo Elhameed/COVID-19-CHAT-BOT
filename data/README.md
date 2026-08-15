@@ -14,16 +14,15 @@ Two consequences, both encoded in `.gitignore`:
 2. **`kb.parquet` is a derivative work** of a ShareAlike corpus, so it is regenerated
    by `python -m src.prep` rather than redistributed here.
 
-Embeddings are likewise rebuilt by `python -m src.index`. The one binary this project
-*does* commit is the trained encoder — see [`artifacts/README.md`](../artifacts/README.md)
-for why that exception exists.
+Embeddings are likewise rebuilt by `python -m src.index`. No binaries are committed
+anywhere in this repository.
 
 ## Reproducing the data
 
 ```bash
-python -m src.download    # fetch COUGH into data/raw/
-python -m src.prep         # -> kb.parquet + query splits + qrels
-python -m src.index        # -> embeddings
+python -m src.download   # fetch COUGH into data/raw/
+python -m src.prep       # -> kb.parquet + query splits + qrels
+python -m src.index      # -> embeddings
 ```
 
 ## Expected layout after a full run

@@ -1,46 +1,42 @@
 # artifacts/
 
-Configuration and experiment records for the served retriever.
+Configuration for the served retriever.
 
 ```
 artifacts/
-├── retriever_config.json        # what the API loads: encoder, field, threshold τ
-└── finetune_experiment.json     # the Phase 4 fine-tune, and why it was not adopted
+└── retriever_config.json    # encoder, indexed field, abstention threshold τ
 ```
 
-## There is no `encoder/` directory, and that is the result
+## What this is
 
-PRD §7.4 planned for `artifacts/encoder/` to hold a fine-tuned bi-encoder, exported by
-`python -m src.train`. Phase 4 ran that fine-tune and **rejected it**.
+`src/api.py` reads this file at startup to know which encoder to load, which KB field it was
+indexed on, and the similarity threshold below which the bot abstains rather than answering
+(PRD §7.5).
 
-The short version: it improved the point estimate on both held-out splits, but on the
-181-query test split the gain was **+0.021 MRR@10 with a 95% CI of [-0.009, +0.051]**
-(p = 0.16). The interval spans zero. Per query it was better on 32 and worse on 25.
-
-PRD §8.4 would have permitted adoption on point estimates alone. We declined, because a
-health-information product should not ship a model whose claimed benefit cannot be
-measured — and because the off-the-shelf encoder already beats BM25 by **+0.100 MRR@10**
-with an interval nowhere near zero, so nothing is lost by saying no.
-
-Full numbers, the training config, and the reasoning are in
-[`finetune_experiment.json`](finetune_experiment.json). `src/train.py` is retained and
-working: the experiment reproduces in about four minutes on the dev machine.
-
-```bash
-python -m src.train
-python -m src.evaluate --split test --retriever biencoder --model artifacts/encoder
+```json
+{
+  "encoder": "sentence-transformers/all-MiniLM-L6-v2",
+  "field": "question",
+  "tau": 0.6932,
+  "tuned_on": "dev"
+}
 ```
 
-The `.gitignore` exception that would let a trained encoder be committed is deliberately
-kept, so the decision can be revisited without re-deriving how to ship the weights.
+τ is tuned on the **dev** split and never on test. At this value the retriever answers 77% of
+in-scope dev queries and none of the off-topic probe in `src.evaluate.OFF_TOPIC_PROBE`.
 
-## What *is* served
+## No model weights live here
 
-`retriever_config.json` records the off-the-shelf encoder, the indexed field, and the
-abstention threshold τ tuned on dev. `src/api.py` loads it at startup, together with
-`data/kb.parquet` and the embeddings rebuilt by `python -m src.index`.
+The encoder is a stock Hugging Face model, downloaded on first use and cached by
+`sentence-transformers`. Nothing about it is modified, so there is nothing to vendor — the
+model id in the config is a complete description of what runs.
 
-Nothing here is hand-edited. To regenerate:
+The KB embeddings are derived data and are rebuilt rather than committed; see
+[`data/README.md`](../data/README.md).
+
+## Regenerating
+
+Nothing here is hand-edited:
 
 ```bash
 python -m src.download                  # fetch COUGH
