@@ -73,6 +73,37 @@ lib/
 - **iOS:** `NSAllowsLocalNetworking` in `Info.plist`, which is the ATS exception scoped to
   local addresses.
 
+## Android toolchain
+
+The Android build files were upgraded to match Flutter 3.41's Gradle plugin:
+
+| | Was | Now |
+|---|---|---|
+| Gradle | 7.6.3 | **8.14** |
+| Android Gradle Plugin | 7.3.0 | **8.11.1** |
+| Kotlin | 1.7.10 | **2.2.20** |
+| Java source/target | 8 | **17** |
+
+On the old versions `flutter run` failed inside Flutter's *own* plugin with
+`Unresolved reference: filePermissions` — that API landed in Gradle 8.3, so the wrapper was
+simply older than the SDK expected. `android.enableJetifier` was also dropped; AGP 8 removed
+it.
+
+## A note on the icons
+
+Every app icon in this repository was previously corrupt. With `core.autocrlf=true` and no
+`.gitattributes`, git treated the PNGs as text and stripped their carriage-return
+bytes, so their signature read `89 50 4E 47 0A 1A 0A` instead of
+`89 50 4E 47 0D 0A 1A 0A` — **in the committed blobs**, across Android, iOS,
+macOS and web.
+
+Debug builds hid it because they skip PNG crunching. It surfaced only on the first release
+build, as `AAPT: error: file failed to compile`.
+
+The root cause is fixed by [`.gitattributes`](../.gitattributes) at the repository root,
+which marks binary types so git never transforms them again. The icons themselves were
+restored from the Flutter templates where possible and regenerated otherwise.
+
 ## Tests
 
 ```bash

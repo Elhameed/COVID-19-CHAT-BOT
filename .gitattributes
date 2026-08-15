@@ -1,0 +1,55 @@
+# Line-ending and binary handling.
+#
+# This file exists because of a real defect: with `core.autocrlf=true` and no
+# .gitattributes, git treated the app's icons as text and stripped every \r
+# byte from them. 35 of 37 tracked PNGs were corrupted *in the committed
+# blobs* — their signature read `89 50 4E 47 0A 1A 0A` instead of
+# `89 50 4E 47 0D 0A 1A 0A`.
+#
+# Debug builds hid it (they skip PNG crunching), so it only surfaced as
+# "AAPT: error: file failed to compile" on the first release build.
+
+# Normalize text in the repository, and let git decide per-file.
+* text=auto
+
+# Explicitly binary — never transform these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.jar binary
+*.keystore binary
+*.jks binary
+*.so binary
+*.dll binary
+*.dylib binary
+*.parquet binary
+*.npz binary
+*.npy binary
+*.safetensors binary
+*.pt binary
+*.bin binary
+
+# Scripts that must keep LF regardless of platform, or they fail to execute.
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew.bat text eol=crlf
+
+# Notebooks are JSON; diffing them is noisy but they are text.
+*.ipynb text
+
+# Generated lockfiles — keep them stable across platforms.
+pubspec.lock text eol=lf
