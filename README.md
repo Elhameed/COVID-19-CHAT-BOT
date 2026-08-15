@@ -4,14 +4,13 @@ A **retrieval-only** COVID-19 information chatbot: it matches a user's plain-lan
 question to the best vetted FAQ answer, returns it with its source and a medical
 disclaimer, and **abstains when it isn't confident**. It never generates medical text.
 
-The retriever is a bi-encoder **fine-tuned locally** on the COUGH benchmark and exported
-as a model artifact the API loads at startup.
+The retriever is a locally-run bi-encoder over a vetted COVID-19 FAQ corpus, evaluated on
+the COUGH retrieval benchmark with confidence intervals on every claim.
 
-> **Status: rebuild in progress.** This repository is being rebuilt from scratch against
-> [`PRD.md`](PRD.md). Phase 0 (hygiene and scaffold) is complete; the retrieval pipeline
-> lands in Phases 1–5. **No accuracy numbers are published here yet** — the ones that
-> appear will be reproducible by `python -m src.evaluate` on the held-out test split, and
-> nothing else.
+> **Status: rebuild in progress.** Built against [`PRD.md`](PRD.md). The retrieval
+> pipeline is complete through Phase 4; the API, app, CI and deployment are Phases 5–9.
+> Every number below is reproducible by `python -m src.evaluate` on the held-out test
+> split, and nothing is quoted that isn't.
 
 ## Why retrieval, not generation
 
@@ -33,24 +32,49 @@ thousand curated FAQ pairs, retrieval is the better answer on every axis that ma
 A confident wrong match is the remaining failure mode, which is what the confidence
 threshold and abstention path exist to control.
 
-Retrieval-only does **not** mean nothing is trained. The bi-encoder is fine-tuned on the
-COUGH training queries with `MultipleNegativesRankingLoss` — training the model that
-*ranks* vetted answers, never one that writes them.
+Retrieval-only does not rule out training. A fine-tune of the *ranker* was built and
+evaluated (see below); what is never trained is a model that writes medical text.
 
-## How quality is established
+## Results
 
-Three retrievers, measured on the same held-out queries, each required to beat the last:
+Measured on 181 held-out test queries against the full 7,077-entry corpus. Reproduce with
+`python -m src.evaluate --split test`.
 
-```
-BM25 (lexical baseline)  <  off-the-shelf bi-encoder  <  fine-tuned bi-encoder
-```
+| System | MRR@10 | P@1 | Recall@10 | nDCG@10 |
+|---|---|---|---|---|
+| BM25 (lexical baseline) | 0.5127 | 0.4033 | 0.2401 | 0.2670 |
+| **MiniLM-L6 bi-encoder** ← shipped | **0.6128** | **0.4972** | **0.3432** | **0.3570** |
+
+The improvement over BM25 is **+0.100 MRR@10, 95% CI [+0.044, +0.157], p = 0.0004** by
+paired bootstrap over per-query scores.
+
+### The fine-tune was built, measured, and declined
+
+PRD §7.4 planned to fine-tune the retriever with `MultipleNegativesRankingLoss` and ship the
+result. That was done — `src/train.py` works and reproduces in ~4 minutes — and the trained
+encoder scored **+0.021 MRR@10** over off-the-shelf on test.
+
+It isn't shipped, because the same significance test tells two different stories:
+
+| Comparison | Δ MRR@10 | 95% CI | p | verdict |
+|---|---|---|---|---|
+| BM25 → MiniLM | +0.100 | [+0.044, +0.157] | 0.0004 | adopted |
+| MiniLM → fine-tuned | +0.021 | [−0.009, +0.051] | 0.161 | **declined** |
+
+The second interval spans zero. Per query the fine-tune wins 32 and loses 25 — a coin flip.
+A health-information product shouldn't ship a model whose benefit can't be measured, and
+declining costs nothing here since the retrieval upgrade is already significant.
+
+The result is **inconclusive, not negative**: resolving a +0.021 effect needs ~375 test
+queries and we allocated 181. Cross-validation over all 1,201 would settle it, and is
+recorded as deferred work rather than quietly dropped. Full record:
+[`artifacts/finetune_experiment.json`](artifacts/finetune_experiment.json).
+
+### Method
 
 The 1,201 COUGH queries are split train/dev/test with a fixed seed. Training uses train,
-threshold tuning and early stopping use dev, and **every reported number comes from test**.
-The 7,117-entry FAQ corpus is never split — all of it stays retrievable at every stage.
-
-If the fine-tune fails to beat the off-the-shelf encoder, it is not adopted, and that
-result gets recorded rather than buried.
+threshold tuning and model selection use dev, and **every reported number comes from test**.
+The FAQ corpus is never split — all 7,077 entries stay retrievable at every stage.
 
 ## Data
 
@@ -73,11 +97,18 @@ carry a source, a trust tier, and a disclaimer.
 
 ```
 Flutter app ──POST /predict──► FastAPI
-                                 ├─ retriever      BM25 │ fine-tuned bi-encoder (+ optional re-ranker)
-                                 ├─ knowledge base data/kb.parquet + precomputed embeddings
-                                 ├─ encoder        artifacts/encoder/  (the trained artifact)
-                                 └─ threshold      → answer + source + disclaimer, or abstention
+                                 ├─ retriever      MiniLM-L6 bi-encoder (+ optional re-ranker)
+                                 ├─ knowledge base data/kb.parquet, 7,077 vetted FAQ entries
+                                 ├─ embeddings     data/embeddings/, rebuilt by src.index
+                                 └─ threshold      τ = 0.693 from artifacts/retriever_config.json
+                                                   → answer + source + trust + disclaimer
+                                                   → or abstention + WHO/CDC pointer
 ```
+
+At τ = 0.693 the bot answers 77% of in-scope queries and 0% of an off-topic probe. Tuned on
+dev, never on test. COUGH contains no unanswerable queries, so that probe is 12
+hand-written out-of-scope questions — a smoke test, not a benchmark, and labelled as such
+in the notebook.
 
 ### Notebook and `src/` share one implementation
 
@@ -113,12 +144,12 @@ to (see [docs/jupyter-mcp.md](docs/jupyter-mcp.md)):
 python scripts/start_jupyter.py
 ```
 
-Once the pipeline lands (Phases 1–6):
+Pipeline:
 
 ```bash
 python -m src.download         # fetch COUGH
 python -m src.prep              # -> data/kb.parquet + seeded query splits
-python -m src.train             # fine-tune -> artifacts/encoder/
+python -m src.train             # reproduce the fine-tune experiment (not shipped)
 python -m src.evaluate          # MRR@10 / P@k / Recall / nDCG on the test split
 uvicorn src.api:app --reload    # serve on :8000
 pytest                          # tests
@@ -134,12 +165,12 @@ Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
 
 | Phase | | Status |
 |---|---|---|
-| 0 | Hygiene & scaffold | ✅ done |
-| 1 | Data pipeline (`download.py`, `prep.py`, splits, EDA) | next |
-| 2 | BM25 baseline + evaluation harness | |
-| 3 | Off-the-shelf semantic retriever + threshold/abstention | |
-| 4 | **Fine-tune the retriever** → `artifacts/encoder/` | |
-| 5 | Cross-encoder re-ranker (optional) | |
+| 0 | Hygiene & scaffold | ✅ |
+| 1 | Data pipeline (`download.py`, `prep.py`, splits, EDA) | ✅ |
+| 2 | BM25 baseline + evaluation harness | ✅ |
+| 3 | Semantic retriever + threshold/abstention | ✅ |
+| 4 | Fine-tune the retriever | ✅ measured, not adopted |
+| 5 | Cross-encoder re-ranker (optional) | next |
 | 6 | FastAPI service | |
 | 7 | Flutter integration | |
 | 8 | Tests + CI | |

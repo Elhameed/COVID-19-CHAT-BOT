@@ -263,9 +263,9 @@ the default text field unless evaluation shows otherwise.
 ```
 Flutter app ──HTTP POST /predict──► FastAPI backend
                                       │
-                                      ├─ Retriever (BM25 | fine-tuned bi-encoder + optional re-ranker)
+                                      ├─ Retriever (BM25 | bi-encoder + optional re-ranker)
                                       ├─ Knowledge base (kb.parquet) + precomputed embeddings
-                                      ├─ Fine-tuned encoder (artifacts/encoder/)
+                                      ├─ Encoder + threshold (artifacts/retriever_config.json)
                                       └─ Threshold/abstention + disclaimer + source attribution
                                       ▼
                               JSON response ──► rendered in chat UI
@@ -444,7 +444,9 @@ Each phase has explicit acceptance criteria; do not advance until met.
   `artifacts/encoder/`. *Done when:* beats the off-the-shelf encoder on test, or is dropped with rationale.
 - **Phase 5 — Re-ranker (optional).** Cross-encoder over top-k.
   *Done when:* measurable P@1 gain, or explicitly dropped.
-- **Phase 6 — API.** FastAPI per §10, loading `artifacts/encoder/` + embeddings.
+- **Phase 6 — API.** FastAPI per §10, loading the encoder named in
+  `artifacts/retriever_config.json` + embeddings. (Phase 4 declined the fine-tune, so this
+  is the off-the-shelf encoder — see §22.)
   *Done when:* `/predict` + `/health` meet the contract; validation/CORS/rate-limit in place.
 - **Phase 7 — Flutter integration.** Configurable URL, cleartext/ATS, new schema, UX fixes, rebrand.
   *Done when:* app talks to API on emulator + device; renders answer/source/disclaimer/abstention.
@@ -465,10 +467,11 @@ Each phase has explicit acceptance criteria; do not advance until met.
 ---
 
 ## 20. Deployment considerations
-- The fine-tuned encoder (`artifacts/encoder/`) and precomputed KB embeddings are produced locally
-  and loaded at startup; runtime needs no internet.
+- The encoder and precomputed KB embeddings are produced locally and loaded at startup;
+  runtime needs no internet. The encoder is downloaded once at build time.
 - Containerize the API with pinned deps; expose `/health`.
-- Decide whether to vendor `artifacts/encoder/` in git (small) or fetch it as a build artifact.
+- No trained encoder is vendored (Phase 4 declined it); the base encoder is fetched at
+  build time and the embeddings rebuilt by `python -m src.index`.
 - Hosting: any container host (Render / Railway / Fly / self-host); keep it free-tier friendly.
   Note: hosted CPU inference is fine at this corpus size — no GPU needed to serve.
 - Flutter: document build/run for Android and iOS; point at the deployed HTTPS API.
@@ -538,6 +541,32 @@ client; fully local development on the Quadro T2000; CPU-only inference is suffi
   MiniLM choice: ~90 MB is small enough, and `.gitignore` already carries the exception.
 - **Index = exact NumPy** (resolves #3), implemented in `src/index.py`. At ~7k vectors a
   brute-force product is sub-millisecond and exact; FAISS not adopted.
+- **The fine-tuned retriever is NOT adopted** (2026-08-15, Phase 4 outcome). This reverses
+  the Option B expectation in §7.4: `src/train.py` exists and works, but `artifacts/encoder/`
+  is not shipped and the API serves the off-the-shelf encoder.
+
+  | test split (n=181) | MRR@10 | P@1 |
+  |---|---|---|
+  | off-the-shelf MiniLM | 0.6128 | 0.4972 |
+  | fine-tuned | 0.6333 | 0.5138 |
+  | delta | +0.021 | +0.017 |
+  | 95% CI on delta | **[−0.009, +0.051]** | **[−0.022, +0.055]** |
+  | bootstrap p | 0.16 | 0.47 |
+
+  §8.4 as written would permit adoption — the fine-tune beats off-the-shelf on both point
+  estimates, and dev improved by +0.039 MRR@10. It is declined anyway, because both
+  confidence intervals span zero: per query the fine-tune is better on 32 and worse on 25
+  (sign test p = 0.43), so the benefit is unmeasurable at this sample size. Hard constraint
+  #4 makes honest evaluation binding, and shipping a model whose advantage cannot be
+  demonstrated would violate its spirit while satisfying its letter.
+
+  The cost of declining is nil: off-the-shelf already beats BM25 by +0.100 MRR@10 with an
+  interval far from zero, so product quality is unaffected.
+
+  Root cause is measurement, not method: 181 test queries cannot resolve a ~0.02 effect —
+  roughly 4× the queries would be needed. Recorded as open decision #5 below.
+  Evidence: `artifacts/finetune_experiment.json`, reproducible via
+  `src.evaluate.paired_bootstrap`.
 
 **Open decisions (record the choice here before implementing the affected phase):**
 1. **Cross-encoder re-ranker** now vs. after the fine-tuned bi-encoder. *Recommendation: after Phase 4.*
@@ -547,6 +576,11 @@ client; fully local development on the Quadro T2000; CPU-only inference is suffi
    COUGH contains no unanswerable queries, so τ is currently tuned against a 12-query
    hand-written probe (`src.evaluate.OFF_TOPIC_PROBE`) rather than a benchmark. *Known gap;
    out of scope for v1.*
+5. **Re-open the fine-tune with a properly powered evaluation.** Phase 4's result was
+   inconclusive rather than negative — the 181-query test split cannot resolve a ~0.02
+   effect. k-fold cross-validation over all 1,201 queries would give roughly 2.6× tighter
+   intervals for about 25 minutes of GPU time, and would settle it either way.
+   *Recommendation: revisit after the app ships; the product does not depend on it.*
 
 ---
 

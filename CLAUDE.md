@@ -5,8 +5,9 @@ Guidance for Claude Code working in this repository. Read this first, every sess
 ## What this project is
 A **COVID-19 information chatbot** being **rebuilt from scratch** as a **retrieval-only,
 fully local** system: match a user's question to the best vetted FAQ answer, attribute the
-source, and abstain when unsure. The retriever (bi-encoder) is **fine-tuned** on the COUGH
-benchmark (Option B) and exported as a model artifact. It integrates into an existing Flutter app.
+source, and abstain when unsure. It serves an **off-the-shelf MiniLM bi-encoder** over a
+7,077-entry vetted FAQ corpus. A fine-tune was built and measured in Phase 4 and **declined**
+(gain within noise) — see PRD §22. It integrates into an existing Flutter app.
 
 ## Source of truth
 **`PRD.md` is the authoritative spec.** Read it before making or suggesting changes. If this
@@ -52,22 +53,28 @@ JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
 - Revive or extend the old `app.py` / `api.py` / notebook / `model/` (reference only).
 - Introduce generation, RAG, or external APIs "to improve answers."
 - Duplicate `src/` logic inside the notebook.
-- Commit raw datasets, `__pycache__`, tfevents, or large caches. (Model artifact: see PRD §22 #5.)
+- Commit raw datasets, `__pycache__`, tfevents, embeddings, or training checkpoints.
+- Re-adopt the fine-tune without a properly powered evaluation (PRD §22 open #5).
 - Report metrics that `src/evaluate.py` can't reproduce, or evaluate on train/dev queries.
 - Change the served corpus without keeping it aligned to the evaluated corpus.
 
 ## Key facts to keep in mind
 - **Baseline to beat:** BM25 over the question field → **MRR@10 0.530, P@1 0.421** (over all 1,201
   queries; recompute on the test split for fair comparison). Question-only beats question+answer.
-- **Acceptance chain:** off-the-shelf bi-encoder must beat BM25; the fine-tuned encoder must beat
-  off-the-shelf; all on the **test split**, else the fine-tune isn't adopted.
+- **Results (test split, n=181):** BM25 0.5127 MRR@10 / 0.4033 P@1 → MiniLM **0.6128 / 0.4972**
+  (+0.100 MRR@10, 95% CI [+0.044, +0.157], p=0.0004). The fine-tune added +0.021 with a CI
+  spanning zero and was declined. τ = 0.693, tuned on dev.
+- **Report deltas with intervals**, not bare point estimates — `src.evaluate.paired_bootstrap`.
 - **Corpus/eval coupling:** relevance labels reference `FAQ_Bank_eval.csv` (7,117 English items),
   so the **served KB and evaluated KB must be the same set** in v1.
 - **Data is dated (~2020–2021)** and mixed-authority (WHO/CDC + community). Surface source/trust;
   disclaimer required; abstain below the confidence threshold.
 - **API contract** (`POST /predict`, `/health`) and response schema are in PRD §10 — follow exactly.
-- **Trained-model artifact** = `artifacts/encoder/` (exported fine-tuned bi-encoder) + `data/kb.parquet`
-  + precomputed embeddings + config (encoder name, threshold τ).
+- **Served artifact** = `artifacts/retriever_config.json` (encoder name + threshold τ) +
+  `data/kb.parquet` + embeddings rebuilt by `src.index`. **Phase 4 fine-tuned an encoder and
+  declined it** — the gain was +0.021 MRR@10 with a CI spanning zero. `src/train.py` is kept
+  and reproducible; `artifacts/encoder/` is deliberately absent. See PRD §22 and
+  `artifacts/finetune_experiment.json`. Do not reintroduce it without a powered evaluation.
 
 ## Environment
 - **Fully local** on a Dell Precision 5550 / **Quadro T2000 (4 GB VRAM)**, CUDA-capable.
@@ -78,7 +85,7 @@ JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
 - Code in `src/`; data artifacts in `data/`; model in `artifacts/`; tests in `tests/`; app in `app/`.
 - Typical commands (align to PRD §17 as files are created):
   - `python -m src.prep` — build the KB + query splits from COUGH
-  - `python -m src.train` — fine-tune the bi-encoder → `artifacts/encoder/`
+  - `python -m src.train` — reproduce the fine-tune experiment (result: not adopted)
   - `python -m src.evaluate` — MRR / P@k / Recall / nDCG on the test split
   - `uvicorn src.api:app --reload` — serve the API
   - `pytest` — run tests
@@ -87,8 +94,10 @@ JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
 - When unsure between options, follow the **recommendations in PRD §22** unless told otherwise.
 
 ## Current status
-Pre-implementation. Next: **Phase 0 (hygiene & scaffold)** → **Phase 1 (data pipeline)** →
-**Phase 2 (BM25 baseline + eval harness)**. Do not jump ahead to training, API, or app work.
+Phases 0–4 complete on branch `rebuild/retrieval-v1`, one commit per phase.
+The retrieval pipeline is finished and measured; **next is Phase 5 (optional cross-encoder
+re-ranker), then Phase 6 (FastAPI)**. `src/api.py` and the Flutter rewiring do not exist yet.
+Follow PRD §18 in order and state which phase you're in.
 
 ## Before finishing any change
 - Does it respect the five hard constraints?

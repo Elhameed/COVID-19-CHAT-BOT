@@ -1,53 +1,50 @@
 # artifacts/
 
-The **trained-model artifact**. Produced by Phase 4, consumed by the API.
+Configuration and experiment records for the served retriever.
 
 ```
 artifacts/
-└── encoder/          # fine-tuned bi-encoder, exported via model.save(...)
+├── retriever_config.json        # what the API loads: encoder, field, threshold τ
+└── finetune_experiment.json     # the Phase 4 fine-tune, and why it was not adopted
 ```
 
-## What this is
+## There is no `encoder/` directory, and that is the result
 
-`artifacts/encoder/` is the bi-encoder fine-tuned on the COUGH training split
-(PRD §7.4, Option B). It is written by:
+PRD §7.4 planned for `artifacts/encoder/` to hold a fine-tuned bi-encoder, exported by
+`python -m src.train`. Phase 4 ran that fine-tune and **rejected it**.
+
+The short version: it improved the point estimate on both held-out splits, but on the
+181-query test split the gain was **+0.021 MRR@10 with a 95% CI of [-0.009, +0.051]**
+(p = 0.16). The interval spans zero. Per query it was better on 32 and worse on 25.
+
+PRD §8.4 would have permitted adoption on point estimates alone. We declined, because a
+health-information product should not ship a model whose claimed benefit cannot be
+measured — and because the off-the-shelf encoder already beats BM25 by **+0.100 MRR@10**
+with an interval nowhere near zero, so nothing is lost by saying no.
+
+Full numbers, the training config, and the reasoning are in
+[`finetune_experiment.json`](finetune_experiment.json). `src/train.py` is retained and
+working: the experiment reproduces in about four minutes on the dev machine.
 
 ```bash
-python -m src.train        # or run from notebooks/development.ipynb
+python -m src.train
+python -m src.evaluate --split test --retriever biencoder --model artifacts/encoder
 ```
 
-and loaded at startup by `src/api.py`. Together with `data/kb.parquet`, the
-precomputed embeddings, and the config (base encoder name, threshold τ), it is
-what the deployed service actually runs.
+The `.gitignore` exception that would let a trained encoder be committed is deliberately
+kept, so the decision can be revisited without re-deriving how to ship the weights.
 
-## Why it *is* committed, unlike everything else binary
+## What *is* served
 
-Almost every other binary in this project is gitignored. This one is deliberately
-not — see the exception block in [`.gitignore`](../.gitignore).
+`retriever_config.json` records the off-the-shelf encoder, the indexed field, and the
+abstention threshold τ tuned on dev. `src/api.py` loads it at startup, together with
+`data/kb.parquet` and the embeddings rebuilt by `python -m src.index`.
 
-The previous implementation's entire `.gitignore` was one line, `*.safetensors`.
-The fine-tuned weights therefore never reached the repository, and
-`AutoModelForCausalLM.from_pretrained("./model")` raised `OSError` on every fresh
-clone. The backend could not start for anyone, including its author.
-
-So: the exported encoder is a **deliverable**, not a cache. Training scratch
-(`checkpoint-*/`, `optimizer.pt`, `scheduler.pt`) *is* a cache and stays ignored.
-
-Per PRD §22 #5, vendoring holds while the artifact is small — MiniLM exports at
-~90 MB. If we adopt `bge-base` (~440 MB), switch to a release asset or Git LFS
-and update the ignore rules together with this note.
-
-## Regenerating
-
-Nothing here is hand-edited. To rebuild from scratch:
+Nothing here is hand-edited. To regenerate:
 
 ```bash
-python -m src.download    # fetch COUGH
-python -m src.prep         # -> data/kb.parquet + seeded query splits + qrels
-python -m src.train        # -> artifacts/encoder/
-python -m src.evaluate     # metrics on the test split
+python -m src.download                  # fetch COUGH
+python -m src.prep                      # -> data/kb.parquet + splits + qrels
+python -m src.index                     # -> data/embeddings/
+python -m src.evaluate --tune-threshold # -> retriever_config.json
 ```
-
-The fine-tune is only adopted if it beats the off-the-shelf encoder on the test
-split, which must in turn beat BM25 (PRD §8.4). If it doesn't, the decision and
-the numbers get recorded rather than buried.

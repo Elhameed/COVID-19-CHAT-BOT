@@ -38,6 +38,9 @@ DATA_DIR = PROJECT_ROOT / "data"
 SPLITS = ("train", "dev", "test", "all")
 DEFAULT_K = 10
 
+# Fixed so a reported confidence interval is reproducible, not resampled anew.
+SEED_BOOTSTRAP = 42
+
 
 # --------------------------------------------------------------------------
 # Metrics
@@ -448,6 +451,95 @@ def format_table(results: list[EvalResult]) -> str:
         vals = "  ".join(f"{v:>9.4f}" for v in r.headline().values())
         lines.append(f"{r.retriever:<24} {r.split:<6} {r.n_queries:>5}  {vals}")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# Comparing two retrievers (PRD §8.4)
+# --------------------------------------------------------------------------
+@dataclass
+class PairedComparison:
+    """Whether one retriever genuinely beats another, with error bars.
+
+    A raw delta between two systems on 181 queries is not evidence on its own.
+    This exists because Phase 4 produced a +0.02 MRR@10 gain whose confidence
+    interval spanned zero, and reporting the delta without the interval would
+    have been exactly the sort of claim this project was rebuilt to avoid.
+    """
+
+    metric: str
+    baseline_name: str
+    candidate_name: str
+    n_queries: int
+    baseline_mean: float
+    candidate_mean: float
+    delta: float
+    ci_low: float
+    ci_high: float
+    p_value: float
+    n_better: int
+    n_worse: int
+    n_tied: int
+
+    @property
+    def significant(self) -> bool:
+        """True when the 95% interval excludes zero."""
+        return self.ci_low > 0.0 or self.ci_high < 0.0
+
+    def to_dict(self) -> dict:
+        return {**self.__dict__, "significant": self.significant}
+
+
+def paired_bootstrap(
+    baseline: EvalResult,
+    candidate: EvalResult,
+    metric: str = "rr",
+    n_resamples: int = 10_000,
+    seed: int = SEED_BOOTSTRAP,
+) -> PairedComparison:
+    """Paired bootstrap over per-query scores.
+
+    Paired because both systems answer the same queries: differencing per query
+    removes query difficulty, which is the dominant variance source here and
+    would otherwise swamp a small effect.
+
+    Both results must come from `evaluate(..., keep_per_query=True)` on the same
+    split.
+    """
+    import numpy as np
+
+    if not baseline.per_query or not candidate.per_query:
+        raise ValueError("both results need keep_per_query=True")
+
+    base_by_id = {q["query_id"]: q for q in baseline.per_query}
+    cand_by_id = {q["query_id"]: q for q in candidate.per_query}
+    shared = sorted(set(base_by_id) & set(cand_by_id))
+    if len(shared) != len(base_by_id) or len(shared) != len(cand_by_id):
+        raise ValueError("results cover different queries; compare on one split")
+
+    a = np.array([base_by_id[i][metric] for i in shared], dtype=float)
+    b = np.array([cand_by_id[i][metric] for i in shared], dtype=float)
+    diff = b - a
+
+    rng = np.random.default_rng(seed)
+    means = rng.choice(diff, size=(n_resamples, len(diff)), replace=True).mean(axis=1)
+    ci_low, ci_high = (float(x) for x in np.percentile(means, [2.5, 97.5]))
+    p_value = 2 * min(float((means <= 0).mean()), float((means >= 0).mean()))
+
+    return PairedComparison(
+        metric=metric,
+        baseline_name=baseline.retriever,
+        candidate_name=candidate.retriever,
+        n_queries=len(shared),
+        baseline_mean=float(a.mean()),
+        candidate_mean=float(b.mean()),
+        delta=float(diff.mean()),
+        ci_low=ci_low,
+        ci_high=ci_high,
+        p_value=min(p_value, 1.0),
+        n_better=int((b > a).sum()),
+        n_worse=int((b < a).sum()),
+        n_tied=int((b == a).sum()),
+    )
 
 
 def tune_and_write_config(

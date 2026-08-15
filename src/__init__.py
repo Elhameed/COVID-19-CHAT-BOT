@@ -10,7 +10,8 @@ reported during development are by construction the numbers the app serves
     src.index      build/load KB embeddings
     src.retriever  BM25 + bi-encoder (+ optional cross-encoder) behind one
                    interface
-    src.train      fine-tune the bi-encoder (Option B) -> artifacts/encoder/
+    src.train      fine-tune the bi-encoder. Retained and reproducible, but the
+                   result was NOT adopted -- see artifacts/finetune_experiment.json
     src.evaluate   MRR / P@k / Recall / nDCG on the COUGH *test* split
     src.api        FastAPI service: POST /predict, GET /health
 

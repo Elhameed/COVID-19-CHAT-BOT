@@ -19,6 +19,7 @@ from src.evaluate import (
     EvalResult,
     evaluate,
     ndcg_at_k,
+    paired_bootstrap,
     precision_at_k,
     recall_at_k,
     reciprocal_rank,
@@ -315,3 +316,66 @@ class TestSummarizeAbstention:
     def test_probe_is_a_documented_smoke_test_not_a_benchmark(self) -> None:
         assert len(OFF_TOPIC_PROBE) == 12
         assert all(isinstance(q, str) and q for q in OFF_TOPIC_PROBE)
+
+
+class TestPairedBootstrap:
+    """The comparison that decided Phase 4 must itself be tested."""
+
+    @staticmethod
+    def _result(name: str, scores: dict[int, float]) -> EvalResult:
+        r = EvalResult(retriever=name, split="test", n_queries=len(scores), corpus_size=1)
+        r.per_query = [
+            {"query_id": qid, "rr": s, "p_at_1": 1.0 if s == 1.0 else 0.0}
+            for qid, s in scores.items()
+        ]
+        return r
+
+    def test_detects_a_large_consistent_gain(self) -> None:
+        base = self._result("base", {i: 0.2 for i in range(60)})
+        cand = self._result("cand", {i: 0.9 for i in range(60)})
+        c = paired_bootstrap(base, cand, metric="rr", n_resamples=2000)
+        assert c.delta == pytest.approx(0.7)
+        assert c.significant
+        assert c.ci_low > 0
+
+    def test_reports_no_effect_as_not_significant(self) -> None:
+        """Identical systems must never look like an improvement."""
+        scores = {i: (i % 5) / 4 for i in range(80)}
+        c = paired_bootstrap(self._result("a", scores), self._result("b", scores), n_resamples=2000)
+        assert c.delta == 0.0
+        assert not c.significant
+        assert c.n_better == 0 and c.n_worse == 0
+
+    def test_noisy_small_gain_is_not_called_significant(self) -> None:
+        """The Phase 4 situation: a positive mean whose interval spans zero."""
+        base = self._result("base", {i: (1.0 if i % 2 else 0.0) for i in range(40)})
+        cand = self._result("cand", {i: (1.0 if i % 2 or i == 0 else 0.0) for i in range(40)})
+        c = paired_bootstrap(base, cand, metric="rr", n_resamples=4000)
+        assert c.delta > 0
+        assert not c.significant
+
+    def test_is_deterministic_for_a_fixed_seed(self) -> None:
+        """A published confidence interval must not move between runs."""
+        base = self._result("base", {i: i / 50 for i in range(50)})
+        cand = self._result("cand", {i: (i + 3) / 50 for i in range(50)})
+        a = paired_bootstrap(base, cand, n_resamples=1000)
+        b = paired_bootstrap(base, cand, n_resamples=1000)
+        assert (a.ci_low, a.ci_high, a.p_value) == (b.ci_low, b.ci_high, b.p_value)
+
+    def test_counts_per_query_wins_and_losses(self) -> None:
+        base = self._result("base", {1: 1.0, 2: 0.0, 3: 0.5})
+        cand = self._result("cand", {1: 0.5, 2: 1.0, 3: 0.5})
+        c = paired_bootstrap(base, cand, n_resamples=500)
+        assert (c.n_better, c.n_worse, c.n_tied) == (1, 1, 1)
+
+    def test_requires_per_query_detail(self) -> None:
+        bare = EvalResult(retriever="x", split="test", n_queries=1, corpus_size=1)
+        with pytest.raises(ValueError, match="keep_per_query"):
+            paired_bootstrap(bare, bare)
+
+    def test_rejects_mismatched_query_sets(self) -> None:
+        """Comparing across different splits would be meaningless."""
+        a = self._result("a", {1: 1.0, 2: 0.5})
+        b = self._result("b", {3: 1.0, 4: 0.5})
+        with pytest.raises(ValueError, match="different queries"):
+            paired_bootstrap(a, b)

@@ -76,10 +76,14 @@ data/embeddings/
 !artifacts/**/*.pt
 
 # Training scratch under artifacts/ stays out (checkpoints, optimizer state).
+# Phase 4's run produced ~700 MB of these; only the decision record is committed.
 artifacts/**/checkpoint-*/
 artifacts/**/optimizer.pt
 artifacts/**/scheduler.pt
 artifacts/**/rng_state.pth
+artifacts/_train_checkpoints/
+artifacts/_sweep/
+artifacts/train_report.json
 # ------------------------------------------------------------------------------
 
 # --- Hugging Face cache ---

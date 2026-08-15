@@ -72,8 +72,16 @@ def kb_fingerprint(kb: pd.DataFrame, field_values: pd.Series) -> str:
 
 
 def cache_path(model_name: str, field: str, embeddings_dir: Path = EMBEDDINGS_DIR) -> Path:
-    slug = model_name.replace("/", "__")
-    return embeddings_dir / f"{slug}__{field}.npz"
+    """Filesystem-safe cache filename for a model/field pair.
+
+    `model_name` may be a Hub id ("BAAI/bge-base-en-v1.5") or a local directory
+    ("artifacts/encoder", or a Windows absolute path), so every separator and
+    drive colon has to be folded out.
+    """
+    slug = model_name
+    for ch in ("/", "\\", ":"):
+        slug = slug.replace(ch, "__")
+    return embeddings_dir / f"{slug.strip('_')}__{field}.npz"
 
 
 @dataclass
