@@ -84,17 +84,17 @@ JSON. Prerequisite: `python scripts/start_jupyter.py` must be running.
 - Typical commands (align to PRD §17 as files are created):
   - `python -m src.prep` — build the KB + query splits from COUGH
   - `python -m src.evaluate` — MRR / P@k / Recall / nDCG on the test split
-  - `uvicorn src.api:app --reload` — serve the API
+  - `uvicorn src.api:app --reload` — serve the API (`/predict`, `/health`, `/docs`)
   - `pytest` — run tests
 - **Phase gating:** follow PRD §18 in order; don't advance until acceptance criteria are met.
   State which phase you're in.
 - When unsure between options, follow the **recommendations in PRD §22** unless told otherwise.
 
 ## Current status
-Phases 0–3 complete on branch `rebuild/retrieval-v1`, one commit per phase. The retrieval
-pipeline is finished and measured; **next is Phase 4 (optional cross-encoder re-ranker),
-then Phase 5 (FastAPI)**. `src/api.py` and the Flutter rewiring do not exist yet.
-Follow PRD §18 in order and state which phase you're in.
+Phases 0–3 and 5 complete on branch `rebuild/retrieval-v1`, one commit per phase. The
+retrieval pipeline and the FastAPI service are done; **next is Phase 6 (Flutter
+integration)**. Phase 4 (cross-encoder re-ranker) is optional and was skipped in favour of
+shipping the API — it remains available. Follow PRD §18 and state which phase you're in.
 
 ## Before finishing any change
 - Does it respect the five hard constraints?

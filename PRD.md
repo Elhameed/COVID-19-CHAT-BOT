@@ -442,6 +442,7 @@ Each phase has explicit acceptance criteria; do not advance until met.
 - **Phase 5 — API.** FastAPI per §10, loading the encoder named in
   `artifacts/retriever_config.json` + embeddings.
   *Done when:* `/predict` + `/health` meet the contract; validation/CORS/rate-limit in place.
+  ✅ Delivered in `src/api.py`; median warm latency 25 ms against the ~300 ms target.
 - **Phase 6 — Flutter integration.** Configurable URL, cleartext/ATS, new schema, UX fixes, rebrand.
   *Done when:* app talks to API on emulator + device; renders answer/source/disclaimer/abstention.
 - **Phase 7 — Testing + CI.** Python + Flutter tests; GitHub Actions.

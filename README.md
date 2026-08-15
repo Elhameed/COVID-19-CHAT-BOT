@@ -8,7 +8,7 @@ The retriever is a locally-run bi-encoder over a vetted COVID-19 FAQ corpus, eva
 the COUGH retrieval benchmark with confidence intervals on every claim.
 
 > **Status: rebuild in progress.** Built against [`PRD.md`](PRD.md). The retrieval
-> pipeline is complete through Phase 3; the API, app, CI and deployment are Phases 4–8.
+> pipeline and the API are complete (Phases 0–3, 5); the app, CI and deployment remain.
 > Every number below is reproducible by `python -m src.evaluate` on the held-out test
 > split, and nothing is quoted that isn't.
 
@@ -99,6 +99,35 @@ dev, never on test. COUGH contains no unanswerable queries, so that probe is 12
 hand-written out-of-scope questions — a smoke test, not a benchmark, and labelled as such
 in the notebook.
 
+### API
+
+`POST /predict` returns a stored answer with its attribution, or an honest abstention:
+
+```bash
+curl -X POST localhost:8000/predict -H 'Content-Type: application/json'      -d '{"question":"How long should I isolate after testing positive?"}'
+```
+```json
+{
+  "answer": "If you have confirmed or suspected COVID-19 and have symptoms, you can end home isolation when: ...",
+  "matched_question": "How long do I need to isolate if I test positive for COVID-19?",
+  "source": "Washington State", "trust": "official",
+  "url": "https://www.doh.wa.gov/...", "score": 0.7777, "abstained": false,
+  "disclaimer": "This is general information, not medical advice. ..."
+}
+```
+
+Below τ it declines, and returns no source rather than attributing a safe message to a real
+FAQ entry. `GET /health` reports the loaded encoder, corpus size and threshold.
+
+Measured on the running service: **median 25 ms** per request after warm start, against a
+300 ms budget. The model and embeddings load once at startup; `/predict` is a sync handler
+so blocking encode work runs in Starlette's threadpool instead of stalling the event loop.
+CORS is restricted to explicit origins, `/predict` is rate limited per client IP, and
+internal errors return a generic 500 — the detail goes to the log, never the response.
+
+Health questions are not written to logs. Each request records a salted hash of the query
+plus its length, enough to correlate a bug report without storing what someone asked.
+
 ### Notebook and `src/` share one implementation
 
 `src/` holds every reusable piece — download, prep, index, retriever, evaluate, api.
@@ -155,8 +184,8 @@ Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
 | 2 | BM25 baseline + evaluation harness | ✅ |
 | 3 | Semantic retriever + threshold/abstention | ✅ |
 | 4 | Cross-encoder re-ranker (optional) | next |
-| 5 | FastAPI service | |
-| 6 | Flutter integration | |
+| 5 | FastAPI service | ✅ |
+| 6 | Flutter integration | next |
 | 7 | Tests + CI | |
 | 8 | Docker, deploy, docs | |
 

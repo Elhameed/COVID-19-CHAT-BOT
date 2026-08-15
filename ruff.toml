@@ -22,6 +22,10 @@ select = [
 [lint.per-file-ignores]
 # Tests assert on fixtures and use pytest's argument-shadowing fixture style.
 "tests/*" = ["S101"]
+# B008 forbids function calls in argument defaults, but `Depends(...)` in a
+# signature default is exactly how FastAPI declares a dependency -- the framework
+# reads it off the signature. Following the rule here would break injection.
+"src/api.py" = ["B008"]
 
 [format]
 docstring-code-format = true
