@@ -4,7 +4,7 @@ import 'predict_response.dart';
 ///
 /// A bot turn carries the whole [PredictResponse] rather than just its text, so
 /// the UI can render the source, trust tier and disclaimer alongside the answer
-/// (PRD §12: those must be visible, not merely present in the payload).
+/// Those must be visible to the user, not merely present in the payload.
 class ChatMessage {
   const ChatMessage._({
     required this.kind,

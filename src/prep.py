@@ -1,13 +1,13 @@
 """Build the knowledge base, qrels, and seeded query splits from raw COUGH.
 
 Deterministic and reproducible: same inputs and seed always yield byte-identical
-artifacts (PRD §6.4). Run after :mod:`src.download`::
+artifacts. Run after :mod:`src.download`::
 
     python -m src.prep
 
 Outputs under ``data/``:
 
-    kb.parquet          knowledge base, schema per PRD §6.5
+    kb.parquet          knowledge base
     queries.parquet     query id -> text + split assignment
     qrels.parquet       relevance judgments, remapped onto surviving KB ids
     splits/*.json       train / dev / test query ids
@@ -16,13 +16,13 @@ Outputs under ``data/``:
 Three properties this module exists to guarantee
 ------------------------------------------------
 1. **The corpus is never split.** All surviving FAQ entries stay retrievable at
-   every stage; only the *queries* are partitioned (PRD §7.4).
+   every stage; only the *queries* are partitioned.
 2. **No judgment is silently lost.** Dropping a duplicate FAQ row without
    remapping the qrels that point at it would delete real positives and quietly
    understate every metric. 62 positive judgments depend on this.
 3. **Numbers and units survive.** "20 seconds", "6 feet", "14 days" are
    load-bearing in health content; the previous pipeline stripped digits
-   entirely (PRD hard constraint #5).
+   entirely.
 """
 
 from __future__ import annotations
@@ -56,15 +56,15 @@ _WS_RE = re.compile(r"\s+")
 # --------------------------------------------------------------------------
 # Trust tiering
 # --------------------------------------------------------------------------
-# PRD §6.4 step 5 defines two tiers: `official` (WHO/CDC/government) and
-# `community` (everything else). Every one of COUGH's 56 sources is listed
-# explicitly rather than matched by regex — a pattern like "contains 'health'"
+# Two tiers: `official` (WHO/CDC/government) and `community` (everything else).
+# Every one of COUGH's 56 sources is listed explicitly rather than matched by a
+# regex — a pattern like "contains 'health'"
 # would silently mis-tier new sources, and mis-tiering is a safety issue when
 # the UI presents the label as an authority signal.
 #
 # Note the judgement call: Harvard, JHU, Penn Med, AMA and Children's Hospital
 # LA are reputable but are not public-health authorities, so they sit in
-# `community` per the PRD's definition. See the EDA notebook for the argument
+# `community` under that definition. See the notebook for the argument
 # that a third `academic` tier would be a reasonable v2 refinement.
 OFFICIAL_SOURCES: frozenset[str] = frozenset(
     {
@@ -280,7 +280,7 @@ def build_kb(faq: pd.DataFrame, report: PrepReport) -> tuple[pd.DataFrame, dict[
     """
     report.raw_faq_rows = len(faq)
 
-    # PRD §6.4 step 2. FAQ_Bank_eval is documented as all-English; assert rather
+    # FAQ_Bank_eval is documented as all-English; assert rather
     # than filter, because a filter that silently removed rows here would break
     # the qrel index alignment the whole benchmark rests on.
     languages = set(faq["language"].dropna().unique())
@@ -560,7 +560,7 @@ def _print_report(report: PrepReport) -> None:
         n = r.split_sizes.get(name, 0)
         total = sum(r.split_sizes.values())
         print(f"  {name:<8} {n:>5,}  ({n / total:.1%})")
-    print("\n  Reminder: metrics are reported on `test` only (PRD 8.5).")
+    print("\n  Reminder: metrics are reported on `test` only.")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         # CPU torch: the dev pin is a CUDA build and would pull ~2.3 GB of
-        # unusable CUDA onto a runner with no GPU (PRD §20).
+        # unusable CUDA onto a runner with no GPU.
         run: pip install -r requirements-cpu.txt
 
       - name: Verify torch is the CPU build
@@ -114,7 +114,7 @@ jobs:
         run: pytest tests/ -q --durations=10
 
       # Guards the headline claim in the README. If retrieval quality drifts,
-      # this fails rather than the number quietly going stale (PRD §19).
+      # this fails rather than the number quietly going stale.
       - name: Regression check on the test split
         run: python -m src.evaluate --split test --retriever both
 

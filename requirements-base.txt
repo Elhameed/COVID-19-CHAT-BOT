@@ -1,9 +1,9 @@
-# Shared dependency pins — everything except torch (PRD §16).
+# Shared dependency pins — everything except torch.
 #
 # Do not install this directly. Pick the variant that matches the machine:
 #
-#   requirements.txt       CUDA torch, for the dev machine (PRD §16.1)
-#   requirements-cpu.txt   CPU torch, for CI and the container (PRD §20)
+#   requirements.txt       CUDA torch, for the dev machine
+#   requirements-cpu.txt   CPU torch, for CI and the container
 #
 # torch is the only package that differs, so it lives in those two files and
 # everything else lives here. One list, no drift.
@@ -38,7 +38,7 @@ matplotlib==3.11.1
 
 # Real-time collaboration. Not for collaborating with people: it is a hard
 # requirement of the Jupyter MCP server (jupyter-collaboration>=5), which drives
-# the notebook against a live kernel -- see docs/jupyter-mcp.md.
+# the notebook against a live kernel.
 #
 # The MCP server itself is deliberately NOT installed here. It depends on
 # unpinned fastapi and uvicorn, which would silently bump the pins above and

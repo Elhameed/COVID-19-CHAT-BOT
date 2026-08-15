@@ -1,9 +1,8 @@
 """COVID-19 Chatbot — retrieval-only FAQ answering over the COUGH corpus.
 
-Modules (PRD §17). Reusable logic lives here and nowhere else: the notebook in
+Modules. Reusable logic lives here and nowhere else: the notebook in
 ``notebooks/`` and the API in :mod:`src.api` both import these, so the numbers
-reported during development are by construction the numbers the app serves
-(PRD §7.6).
+reported during development are by construction the numbers the app serves.
 
     src.prep       clean/filter/dedupe COUGH -> data/kb.parquet, seeded
                    train/dev/test query splits, and aligned qrels

@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/predict_response.dart';
 
-/// Talks to the Covicare retrieval API (PRD §10.2, §12).
+/// Talks to the Covicare retrieval API.
 ///
 /// The app holds no model logic: it posts a question and renders what comes
 /// back. Everything about *which* answer is chosen lives server-side.

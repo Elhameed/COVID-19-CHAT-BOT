@@ -1,4 +1,4 @@
-# CPU-only dependencies — for CI and the deployment container (PRD §20).
+# CPU-only dependencies — for CI and the deployment container.
 #
 #   pip install -r requirements-cpu.txt
 #

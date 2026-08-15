@@ -1,4 +1,4 @@
-"""Tests for the metric functions (PRD §19).
+"""Tests for the metric functions.
 
 Metrics are checked against hand-computed values rather than a golden file. A
 metric that is subtly wrong still produces plausible numbers, which is precisely
@@ -81,7 +81,7 @@ class TestRecallAtK:
 
     def test_capped_by_cutoff(self) -> None:
         """With more positives than slots, recall cannot reach 1.0 -- the reason
-        PRD 8.2 leads with MRR/P@k instead."""
+        MRR/P@k lead instead."""
         ranked = list(range(20))
         relevant = set(range(20))
         assert recall_at_k(ranked, relevant, k=10) == 0.5
@@ -194,7 +194,7 @@ class TestEvalResult:
 
 
 # --------------------------------------------------------------------------
-# Regression guard on the real benchmark (PRD §19)
+# Regression guard on the real benchmark
 # --------------------------------------------------------------------------
 needs_artifacts = pytest.mark.skipif(
     not (DATA_DIR / "kb.parquet").exists(),
@@ -236,14 +236,14 @@ class TestBm25Regression:
     def test_reproduces_published_baseline_on_all_queries(
         self, bm25_all_question: EvalResult
     ) -> None:
-        # PRD 8.3 reports MRR@10 0.530 / P@1 0.421 on the pre-dedup corpus.
+        # The published baseline is MRR@10 0.530 / P@1 0.421 on the pre-dedup corpus.
         assert bm25_all_question.mrr_at_10 == pytest.approx(0.524, abs=0.015)
         assert bm25_all_question.p_at_1 == pytest.approx(0.421, abs=0.015)
 
     def test_question_only_beats_question_plus_answer(
         self, bm25_all_question: EvalResult, bm25_all_question_answer: EvalResult
     ) -> None:
-        """The PRD 8.3 finding that drives the default field choice."""
+        """The published finding that drives the default field choice."""
         assert bm25_all_question.mrr_at_10 > bm25_all_question_answer.mrr_at_10
         assert bm25_all_question.p_at_1 > bm25_all_question_answer.p_at_1
 
@@ -254,7 +254,7 @@ class TestBm25Regression:
 
 
 # --------------------------------------------------------------------------
-# Abstention threshold (PRD §7.5)
+# Abstention threshold
 # --------------------------------------------------------------------------
 class TestTuneThreshold:
     # Three correct answers scoring high, two wrong scoring low.
@@ -263,7 +263,7 @@ class TestTuneThreshold:
 
     def test_off_topic_objective_picks_the_lowest_clean_threshold(self) -> None:
         """Keeps as much in-scope coverage as possible while rejecting every
-        off-topic query -- the operating point PRD §4 actually describes."""
+        off-topic query -- the operating point the product actually needs."""
         choice = tune_threshold(
             self.SCORES, self.CORRECT, objective="off_topic", off_topic_scores=[0.3, 0.45]
         )

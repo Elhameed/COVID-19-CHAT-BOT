@@ -8,7 +8,7 @@ abstract final class CovicareTheme {
   static const Color seed = Color(0xFF6A5AE0);
 
   /// Colours carrying meaning rather than decoration. Trust tier is a safety
-  /// signal (PRD §21), so it gets a deliberate, consistent treatment.
+  /// signal, so it gets a deliberate, consistent treatment.
   static const Color official = Color(0xFF2E7D5B);
   static const Color community = Color(0xFF9A6A00);
 

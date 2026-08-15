@@ -7,11 +7,10 @@ disclaimer, and **abstains when it isn't confident**. It never generates medical
 The retriever is a locally-run bi-encoder over a vetted COVID-19 FAQ corpus, evaluated on
 the COUGH retrieval benchmark with confidence intervals on every claim.
 
-> **Status: rebuild in progress.** Built against [`PRD.md`](PRD.md). The retrieval
-> pipeline, the API and the Flutter client are complete (Phases 0–3, 5, 6); CI and
-> deployment remain.
-> Every number below is reproducible by `python -m src.evaluate` on the held-out test
-> split, and nothing is quoted that isn't.
+> **Status: in development.** The retrieval pipeline, the API, the Flutter client and
+> CI are complete; containerised deployment is in progress. Every number below is
+> reproducible by `python -m src.evaluate` on the held-out test split, and nothing is
+> quoted that isn't.
 
 ## Why retrieval, not generation
 
@@ -141,7 +140,7 @@ unavoidable by having its notebook train BERT-QA while its API served an unrelat
 DialoGPT.
 
 `notebooks/development.ipynb` runs top to bottom against the real corpus and produces the
-numbers quoted above; `scripts/start_jupyter.py` starts a server for it.
+numbers quoted above.
 
 ## Getting started
 
@@ -156,7 +155,7 @@ py -3.11 -m venv .venv
 To open the notebook:
 
 ```bash
-python scripts/start_jupyter.py     # JupyterLab on :8888, token handled for you
+jupyter lab notebooks/development.ipynb
 ```
 
 Pipeline:
@@ -184,9 +183,7 @@ visually distinct and carry no source. See [`app/README.md`](app/README.md).
 
 ## Roadmap
 
-Phases and their acceptance criteria are defined in [`PRD.md`](PRD.md) §18.
-
-| Phase | | Status |
+| | | Status |
 |---|---|---|
 | 0 | Hygiene & scaffold | ✅ |
 | 1 | Data pipeline (`download.py`, `prep.py`, splits, EDA) | ✅ |

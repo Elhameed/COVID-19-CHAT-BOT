@@ -1,4 +1,4 @@
-"""Tests for the FastAPI service (PRD §19).
+"""Tests for the FastAPI service.
 
 Two layers. Most tests run against a stub service so the contract, validation
 and abstention paths are checked in milliseconds. A smaller set loads the real
@@ -101,7 +101,7 @@ class TestHealth:
 
 
 class TestPredictContract:
-    """PRD §10.2 — the exact shape the Flutter client depends on."""
+    """The exact response shape the Flutter client depends on."""
 
     def test_response_has_every_contract_field(self, client_confident: TestClient) -> None:
         body = client_confident.post("/predict", json={"question": "how does covid spread?"}).json()
@@ -147,7 +147,7 @@ class TestPredictContract:
 
 
 class TestAbstention:
-    """PRD §7.5 — below τ the bot declines instead of guessing."""
+    """Below τ the bot declines instead of guessing."""
 
     def test_abstains_below_the_threshold(self, client_unsure: TestClient) -> None:
         body = client_unsure.post("/predict", json={"question": "what's the weather?"}).json()
@@ -248,7 +248,7 @@ class TestErrorHandling:
 
 class TestCors:
     def test_wildcard_origin_is_not_allowed(self, client_confident: TestClient) -> None:
-        """PRD §10.3 forbids `*`; the old service used it with credentials."""
+        """A wildcard origin with credentials is unsafe; the old service used one."""
         response = client_confident.options(
             "/predict",
             headers={
@@ -346,7 +346,7 @@ class TestAgainstRealCorpus:
         assert body["source"] is None
 
     def test_warm_latency_is_within_budget(self, real_client: TestClient) -> None:
-        """PRD §10.3 targets <~300 ms added latency after warm start."""
+        """Budget is <~300 ms added latency after warm start."""
         import time
 
         real_client.post("/predict", json={"question": "warmup"})

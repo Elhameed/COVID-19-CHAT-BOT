@@ -1,11 +1,11 @@
-"""FastAPI service for the COVID-19 FAQ chatbot (PRD §10).
+"""FastAPI service for the COVID-19 FAQ chatbot.
 
     uvicorn src.api:app --reload
 
 Loads the knowledge base, the encoder named in ``artifacts/retriever_config.json``
 and the precomputed embeddings **once at startup**, then answers from memory.
 
-The service imports the same ``src/`` modules the notebook does (PRD §7.6), so
+The service imports the same ``src/`` modules the notebook does, so
 the behaviour measured during development is the behaviour served here — not a
 reimplementation that drifts.
 
@@ -48,7 +48,7 @@ DISCLAIMER = (
 
 # Fixed text for the abstention path. Deliberately offers no FAQ content and no
 # source: a low-confidence match must not be dressed up as an attributed answer
-# (PRD §10.2, §21).
+# .
 ABSTENTION_ANSWER = (
     "I don't have a vetted answer for that. This assistant only covers COVID-19 "
     "questions from a fixed set of public-health FAQs. For reliable guidance, see the "
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="COVICARE_", env_file=".env", extra="ignore")
 
-    # Explicit origins, never "*" with credentials (PRD §10.3). Defaults cover
+    # Explicit origins, never "*" with credentials. Defaults cover
     # local Flutter web and desktop development.
     cors_origins: list[str] = ["http://localhost:8080", "http://127.0.0.1:8080"]
     cors_allow_credentials: bool = False
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Health questions are sensitive. At INFO the service records a salted hash
     # and the length, never the text; set this only on a machine where seeing
-    # real queries is acceptable (PRD §10.3, "No PII").
+    # real queries is acceptable.
     log_queries: bool = False
     log_salt: str = "covicare"
 
@@ -97,7 +97,7 @@ class PredictRequest(BaseModel):
 
 
 class PredictResponse(BaseModel):
-    """The PRD §10.2 contract.
+    """The /predict response contract.
 
     `source`, `trust`, `url` and `matched_question` are null on abstention so a
     client cannot accidentally attribute the safe message to a real FAQ entry.
@@ -164,7 +164,7 @@ class ChatbotService:
         """Retrieve, threshold, and build the response.
 
         Below τ the bot abstains rather than returning its best guess: a
-        confident wrong answer is the failure mode that matters here (PRD §21).
+        confident wrong answer is the failure mode that matters here.
         """
         hits = self.retriever.search(question, top_k=top_k)
         if not hits:

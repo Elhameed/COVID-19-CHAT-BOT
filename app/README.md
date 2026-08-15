@@ -2,7 +2,7 @@
 
 Chat UI for the COVID-19 retrieval API. The app holds **no model logic**: it posts a
 question to `POST /predict` and renders what comes back, including the source, trust tier
-and disclaimer (PRD §10.2, §12).
+and disclaimer.
 
 ## Running
 

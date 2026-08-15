@@ -1,4 +1,4 @@
-"""Tests for the data pipeline (PRD §19).
+"""Tests for the data pipeline.
 
 Focus is on the properties whose failure would be silent: preprocessing that
 destroys content, splits that aren't reproducible, and qrels that lose
@@ -31,7 +31,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 # --------------------------------------------------------------------------
-# Text normalization — PRD hard constraint #5
+# Text normalization
 # --------------------------------------------------------------------------
 class TestNormalizeText:
     @pytest.mark.parametrize(
@@ -94,7 +94,7 @@ class TestClassifyTrust:
 
 
 # --------------------------------------------------------------------------
-# Splits — PRD §8.5 anti-leakage
+# Splits — anti-leakage
 # --------------------------------------------------------------------------
 class TestMakeSplits:
     IDS: ClassVar[list[int]] = list(range(1000))
@@ -329,7 +329,7 @@ class TestBuiltArtifacts:
             assert abs(sizes[name] / total - expected) < 0.01
 
     def test_corpus_is_not_split(self, artifacts: dict) -> None:
-        """All KB entries stay retrievable at every stage (PRD §7.4)."""
+        """All KB entries stay retrievable at every stage."""
         assert "split" not in artifacts["kb"].columns
 
     def test_numbers_survived_the_real_pipeline(self, artifacts: dict) -> None:

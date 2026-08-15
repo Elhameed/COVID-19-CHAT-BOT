@@ -1,4 +1,4 @@
-"""Build, cache and search dense embeddings over the knowledge base (PRD §7.2).
+"""Build, cache and search dense embeddings over the knowledge base.
 
 Embedding 7k KB questions takes seconds on the GPU and a minute or two on CPU,
 but it happens on every API start and every notebook run, so the vectors are
@@ -8,7 +8,7 @@ cached to ``data/embeddings/``.
     python -m src.index --model BAAI/bge-base-en-v1.5
     python -m src.index --rebuild
 
-Search is exact (PRD §22 #3). At 7k vectors a brute-force matrix product is
+Search is exact. At 7k vectors a brute-force matrix product is
 sub-millisecond and returns the true nearest neighbours, so an ANN index would
 add a dependency, an approximation, and a tuning surface to solve a problem we
 do not have.
@@ -108,7 +108,7 @@ class EmbeddingIndex:
 
         Both sides are L2-normalized, so the inner product *is* cosine
         similarity and scores land in [-1, 1] -- which is what makes a single
-        threshold τ meaningful across queries (PRD §7.5).
+        threshold τ meaningful across queries.
         """
         if query_embeddings.ndim == 1:
             query_embeddings = query_embeddings[None, :]

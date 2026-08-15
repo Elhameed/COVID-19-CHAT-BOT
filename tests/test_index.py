@@ -1,4 +1,4 @@
-"""Tests for embedding index construction, caching and search (PRD §19).
+"""Tests for embedding index construction, caching and search.
 
 The cache-staleness guard gets the most attention here. Embeddings that no
 longer match the KB would misalign every id while still producing plausible

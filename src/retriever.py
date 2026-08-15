@@ -2,8 +2,7 @@
 
 Every retriever answers the same question -- given a query, which KB entries are
 most relevant -- so `src.evaluate` and `src.api` never care which one they hold.
-That shared interface is what lets the two be compared on identical machinery
-(PRD §7.2).
+That shared interface is what lets the two be compared on identical machinery.
 
     from src.retriever import BM25Retriever, load_kb
 
@@ -11,7 +10,7 @@ That shared interface is what lets the two be compared on identical machinery
     retriever = BM25Retriever(kb)
     hits = retriever.search("how does covid spread?", top_k=10)
 
-Tokenization deliberately keeps digits (PRD hard constraint #5): "20 seconds"
+Tokenization deliberately keeps digits: "20 seconds"
 and "6 feet" are content, and a query asking how long to wash your hands should
 be able to match on the number.
 """
@@ -28,7 +27,7 @@ from rank_bm25 import BM25Okapi
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 
-# Text fields a retriever can index. PRD §8.3 measured question-only as the
+# Text fields a retriever can index. The published baseline measured question-only as the
 # stronger choice; `question_answer` exists so that finding stays reproducible
 # rather than being taken on trust.
 FIELDS = ("question", "question_answer")
@@ -68,7 +67,7 @@ class Retriever(ABC):
     Implementations return `(kb_id, score)` pairs sorted by descending score.
     Scores are only meaningful within a retriever -- BM25 scores are unbounded
     sums, cosine similarities are bounded -- so the abstention threshold in
-    PRD §7.5 is tuned per retriever, never shared across them.
+    the abstention threshold is tuned per retriever, never shared across them.
     """
 
     name: str = "retriever"
@@ -87,7 +86,7 @@ class Retriever(ABC):
 
 
 class BM25Retriever(Retriever):
-    """Okapi BM25 over a KB text field -- the lexical baseline (PRD §7.2).
+    """Okapi BM25 over a KB text field -- the lexical baseline.
 
     This is the number every semantic retriever has to beat. It trains on
     nothing, so there is no leakage to reason about: the same index serves
@@ -124,7 +123,7 @@ class BM25Retriever(Retriever):
 
 
 class BiEncoderRetriever(Retriever):
-    """Dense retrieval over precomputed KB embeddings (PRD §7.2).
+    """Dense retrieval over precomputed KB embeddings.
 
     Where BM25 matches words, this matches meaning: query and KB entry are
     embedded separately and compared by cosine similarity. That is what lets it
@@ -133,7 +132,7 @@ class BiEncoderRetriever(Retriever):
 
     Both sides are L2-normalized, so scores are cosine similarities in [-1, 1]
     and are directly comparable across queries -- the property the abstention
-    threshold τ depends on (PRD §7.5). BM25 scores have no such scale, which is
+    threshold τ depends on. BM25 scores have no such scale, which is
     why τ is tuned per retriever rather than shared.
     """
 

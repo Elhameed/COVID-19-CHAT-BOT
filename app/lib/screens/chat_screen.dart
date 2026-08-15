@@ -5,7 +5,7 @@ import '../services/api_service.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/typing_indicator.dart';
 
-/// The conversation (PRD §13).
+/// The conversation.
 ///
 /// Holds no model logic: it posts to `/predict` and renders what returns,
 /// including the abstention path.
@@ -234,7 +234,7 @@ class ChatScreenState extends State<ChatScreen> {
 }
 
 /// States the bot's scope up front, so a user learns its limits before hitting
-/// them (PRD §13 step 1).
+/// them.
 class _ScopeBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

@@ -35,7 +35,7 @@ data/
 │   ├── FAQ_Bank_eval.csv                7,117 rows  <- retrieval corpus
 │   ├── User_Query_Bank.csv              1,201 rows  <- queries, split below
 │   └── Annotated_Relevance_Set.csv     39,760 judgments
-├── kb.parquet                  # normalized knowledge base (PRD §6.5)
+├── kb.parquet                  # normalized knowledge base
 ├── splits/                     # seeded train/dev/test query ids (committed —
 │   │                           #   tiny, and the split must be reproducible)
 │   ├── train.json                      ~70%
@@ -49,12 +49,12 @@ data/
 
 **1. The served corpus and the evaluated corpus are the same set.**
 `FAQ_Bank_eval.csv` is the corpus the relevance labels reference, so it is also the
-corpus we serve (PRD §6.2). Changing one without the other silently invalidates every
+corpus we serve. Changing one without the other silently invalidates every
 metric.
 
 **2. The corpus is never split — only the queries are.**
 All 7,117 FAQ entries stay retrievable at every stage. The train/dev/test partition
-applies to the 1,201 *queries* (PRD §7.4). Train on train, tune τ and early-stop on
+applies to the 1,201 *queries*. Train on train, tune τ and early-stop on
 dev, report on test only, with a fixed seed so the split is reproducible.
 
 ## Dedup and qrels alignment
@@ -63,7 +63,7 @@ dev, report on test only, with a fixed seed so the split is reproducible.
 `FAQ_Bank_eval` row indices (0–7116). Dropped rows must therefore be **remapped onto
 their surviving twin**, not discarded — a dangling qrel is a silently lost positive,
 which would understate every metric we report. The prep step records how many entries
-were removed and how many judgments were remapped (PRD §6.4 step 4).
+were removed and how many judgments were remapped .
 
 ## Attribution
 

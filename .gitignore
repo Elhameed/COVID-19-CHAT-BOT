@@ -27,11 +27,28 @@ __pycache__/
 !.env.example
 *.key
 
-# .mcp.json IS committed (project-scoped MCP config, PRD §22) and contains no
-# secrets -- it references ${JUPYTER_TOKEN} by expansion. The real token lives
-# in these two files, which must never be.
-.claude/settings.local.json
+# --- Private: development tooling and internal planning ---
+# These stay on the developer's machine. They are not part of the deliverable,
+# and nothing in src/, tests/, app/ or the notebook depends on them.
+#
+# Already-tracked files needed `git rm --cached` as well as these rules; a
+# .gitignore entry alone does not stop tracking something git already knows.
+PRD.md
+CLAUDE.md
+.claude/
+.mcp.json
 .jupyter_token
+.jupyter/
+.jupyter_ystore.db
+.jupyter_ystore.db-*
+*.ystore.db
+scripts/start_jupyter.py
+AGENTS.md
+.cursorrules
+.aider*
+.continue/
+.windsurfrules
+.github/copilot-instructions.md
 
 # --- Raw datasets ---
 # COUGH is CC BY-NC-SA 4.0 and is fetched by `python -m src.download`, never

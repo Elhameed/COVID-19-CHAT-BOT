@@ -1,4 +1,4 @@
-/// The `POST /predict` response (PRD §10.2).
+/// The `POST /predict` response.
 ///
 /// The API returns either a stored FAQ answer with its attribution, or an
 /// abstention. On abstention `matchedQuestion`, `source`, `trust` and `url` are

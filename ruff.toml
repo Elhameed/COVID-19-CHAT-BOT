@@ -1,4 +1,4 @@
-# Lint + format configuration (PRD §16.2).
+# Lint + format configuration.
 #
 # 100 columns rather than the default 88: the retrieval code carries long
 # explanatory comments and pandas expressions that read worse when wrapped.

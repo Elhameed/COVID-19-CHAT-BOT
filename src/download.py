@@ -1,8 +1,7 @@
 """Fetch the COUGH dataset into ``data/raw/``.
 
 COUGH (Zhang et al.) is a COVID-19 FAQ *retrieval* benchmark. Unlike a bare FAQ
-dump it ships relevance judgments, which is what lets us report honest metrics
-(PRD §6.2, §8).
+dump it ships relevance judgments, which is what lets us report honest metrics.
 
 The raw files are never committed: the corpus is CC BY-NC-SA 4.0, research and
 education use only, and redistribution would carry ShareAlike obligations we
@@ -146,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Fetching COUGH into {RAW_DIR.relative_to(PROJECT_ROOT)}/")
     counts = fetch(force=args.force)
 
-    print("\nRow counts verified against PRD §6.2:")
+    print("\nRow counts verified against the documented dataset sizes:")
     for name, rows in counts.items():
         print(f"  {name:<30} {rows:>7,}")
 

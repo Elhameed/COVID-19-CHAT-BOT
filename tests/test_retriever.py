@@ -1,4 +1,4 @@
-"""Tests for the retriever layer (PRD §19)."""
+"""Tests for the retriever layer."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def _kb_fixture() -> pd.DataFrame:
 
 class TestTokenize:
     def test_keeps_digits(self) -> None:
-        """PRD hard constraint #5: a query about "20 seconds" must be able to
+        """A query about "20 seconds" must be able to
         match on the number, so the tokenizer cannot discard it."""
         assert "20" in tokenize("Wash for 20 seconds")
         assert "6" in tokenize("Stay 6 feet apart")

@@ -1,4 +1,4 @@
-// Widget tests for the Covicare chat UI (PRD §19).
+// Widget tests for the Covicare chat UI.
 //
 // These drive the real screens against a mocked HTTP client, so they exercise
 // the actual request/response path rather than a stubbed-out view model. The
@@ -214,7 +214,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Mainly person to person'), findsOneWidget);
-      // PRD §12: attribution and disclaimer must be visible, not just in JSON.
+      // Attribution and disclaimer must be visible, not just present in JSON.
       expect(find.textContaining('World Health Organization'), findsOneWidget);
       expect(find.textContaining('not medical advice'), findsWidgets);
       expect(find.textContaining('How is COVID-19 transmitted?'), findsOneWidget);

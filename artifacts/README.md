@@ -10,8 +10,7 @@ artifacts/
 ## What this is
 
 `src/api.py` reads this file at startup to know which encoder to load, which KB field it was
-indexed on, and the similarity threshold below which the bot abstains rather than answering
-(PRD §7.5).
+indexed on, and the similarity threshold below which the bot abstains rather than answering.
 
 ```json
 {

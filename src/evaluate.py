@@ -1,19 +1,19 @@
-"""Retrieval metrics on the COUGH benchmark (PRD §8).
+"""Retrieval metrics on the COUGH benchmark.
 
 Single source of truth for every number this project reports. The notebook and
 the API import the same module, so a figure quoted in the README is one command
 away from being re-derived:
 
     python -m src.evaluate                      # BM25, test split
-    python -m src.evaluate --split all          # reproduce PRD §8.3
+    python -m src.evaluate --split all          # all queries, matching the published baseline
     python -m src.evaluate --field question_answer
 
-Metric choice (PRD §8.2) follows from the data. Queries average ~6.5 relevant
+Metric choice follows from the data. Queries average ~6.5 relevant
 entries, so Recall@10 is capped by annotation density rather than retrieval
 quality -- a perfect retriever showing 10 results cannot recall 25 positives.
 MRR@10 and P@1 lead instead, because the chat UI shows exactly one answer.
 
-Anti-leakage (PRD §8.5): `--split test` is the default and the only split whose
+Anti-leakage: `--split test` is the default and the only split whose
 numbers are ever reported as results. BM25 trains on nothing, so its "all"
 figure is safe to quote for comparison against the published benchmark, but the
 acceptance chain in §8.4 is judged on test alone.
@@ -280,10 +280,10 @@ def evaluate_biencoder(
 
 
 # --------------------------------------------------------------------------
-# Abstention threshold (PRD §7.5)
+# Abstention threshold
 # --------------------------------------------------------------------------
 # COUGH gives every query at least one positive, so the benchmark contains no
-# unanswerable questions and cannot, on its own, validate the behaviour PRD §4
+# unanswerable questions and cannot, on its own, validate the behaviour the
 # actually asks for ("What's the weather?" -> abstain). Tuning τ for F1 on it
 # degenerates to "never abstain", because recall is maximised by answering
 # everything.
@@ -360,10 +360,10 @@ def tune_threshold(
     objective: str = "f1",
     off_topic_scores: list[float] | None = None,
 ) -> ThresholdChoice:
-    """Choose τ on the dev split (PRD §7.5).
+    """Choose τ on the dev split.
 
     Frames abstention as a decision problem. Answering when the top-1 is wrong
-    is the failure mode PRD §21 calls out -- a confident wrong answer in a
+    is the worst failure mode for this product -- a confident wrong answer in a
     health context -- so `objective="precision"` targets a conservative
     operating point; `"f1"` balances that against staying useful.
 
@@ -454,7 +454,7 @@ def format_table(results: list[EvalResult]) -> str:
 
 
 # --------------------------------------------------------------------------
-# Comparing two retrievers (PRD §8.4)
+# Comparing two retrievers
 # --------------------------------------------------------------------------
 @dataclass
 class PairedComparison:
@@ -550,7 +550,7 @@ def tune_and_write_config(
 
     The result is what `src/api.py` loads at startup: encoder, field, and the
     threshold below which the bot abstains. Tuned on **dev** only -- test is
-    never used to pick a hyperparameter (PRD §8.5).
+    never used to pick a hyperparameter.
     """
     from src.index import ARTIFACTS_DIR, load_or_build_index
     from src.retriever import BiEncoderRetriever
@@ -617,7 +617,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--all-fields",
         action="store_true",
-        help="evaluate every field, reproducing the PRD 8.3 comparison",
+        help="evaluate every field, for the published question vs question+answer comparison",
     )
     parser.add_argument(
         "--retriever",
@@ -642,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         from src.index import DEFAULT_MODEL
 
         config = tune_and_write_config(args.model or DEFAULT_MODEL, field=args.field)
-        print("Abstention threshold (PRD 7.5), tuned on dev:\n")
+        print("Abstention threshold, tuned on dev:\n")
         for key in ("encoder", "field", "tau", "objective"):
             print(f"  {key:<26} {config[key]}")
         print(f"  {'dev in-scope answered':<26} {config['dev_in_scope_answered']:.1%}")
@@ -681,7 +681,7 @@ def main(argv: list[str] | None = None) -> int:
     print(format_table(results))
 
     if args.split == "test":
-        print("\nTest split only -- the split every reported result comes from (PRD 8.5).")
+        print("\nTest split only -- the split every reported result comes from.")
 
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-// Integration check against a REAL running API (PRD §12, §19).
+// Integration check against a REAL running API.
 //
 // Skipped automatically when the server isn't up, so `flutter test` stays green
 // offline. To run it for real:

@@ -6,7 +6,7 @@ import '../theme.dart';
 /// Renders one conversation turn.
 ///
 /// For a bot answer this shows the stored text **plus its source, trust tier and
-/// the medical disclaimer**. PRD §12 requires those to be visible in the UI, not
+/// the medical disclaimer**. Those must be visible in the UI, not
 /// merely present in the JSON — an attributed answer whose attribution the user
 /// never sees is functionally unattributed.
 class MessageBubble extends StatelessWidget {
