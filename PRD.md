@@ -31,7 +31,7 @@ as **reference only** — do **not** revive, patch, or extend them.
    `src/evaluate.py`.
 5. **Preserve numbers and units in text preprocessing** ("20 seconds", "6 feet", "14 days" are
    load-bearing in health content — the old pipeline stripped digits; do not repeat that).
-
+ 
 ---
 
 ## 1. Project overview
@@ -518,14 +518,35 @@ client; fully local development on the Quadro T2000; CPU-only inference is suffi
     MCP server itself is deliberately *not*, since its unpinned `fastapi`/`uvicorn` would
     break the §16 pins. `uvx` runs it in an isolated environment.
 
+- **Bi-encoder = `all-MiniLM-L6-v2`** (2026-08-15, resolves open decision #2). Both encoders
+  were measured off-the-shelf on the test split in Phase 3:
+
+  | | MRR@10 | P@1 | τ | in-scope answered at τ | size |
+  |---|---|---|---|---|---|
+  | MiniLM-L6 | 0.6128 | 0.4972 | 0.693 | **77%** | ~90 MB |
+  | bge-base-en-v1.5 | **0.6294** | **0.5304** | 0.782 | 58% | ~440 MB |
+
+  bge-base ranks better by +0.017 MRR@10, but MiniLM wins on the three things that
+  decide it: (a) it is the better *abstainer* — at equal off-topic rejection it answers
+  19 points more in-scope queries, because bge's score distributions sit closer together;
+  (b) at ~90 MB the exported encoder can be vendored in git, which keeps the repo
+  clone-and-run and is the exact failure this rebuild exists to eliminate; (c) 384-dim /
+  22M params allows far larger fine-tuning batches on 4 GB VRAM, and
+  `MultipleNegativesRankingLoss` draws its negatives in-batch, so batch size is a direct
+  quality lever in Phase 4. Revisit if the fine-tune fails to beat 0.6128.
+- **Vendor `artifacts/encoder/` in git** (2026-08-15, resolves #5), which follows from the
+  MiniLM choice: ~90 MB is small enough, and `.gitignore` already carries the exception.
+- **Index = exact NumPy** (resolves #3), implemented in `src/index.py`. At ~7k vectors a
+  brute-force product is sub-millisecond and exact; FAISS not adopted.
+
 **Open decisions (record the choice here before implementing the affected phase):**
 1. **Cross-encoder re-ranker** now vs. after the fine-tuned bi-encoder. *Recommendation: after Phase 4.*
-2. **Bi-encoder model:** MiniLM (fast) vs. bge-base (stronger). *Recommendation: MiniLM first, then
-   compare bge-base — 4 GB VRAM handles either.*
-3. **Index:** exact NumPy vs. FAISS. *Recommendation: exact; FAISS optional.*
-4. **Supplementary data** (deepset / CDC-FAQ): include or not. *Recommendation: not in v1.*
-5. **Vendor `artifacts/encoder/` in git** vs. build artifact. *Recommendation: vendor if small.*
-6. **Deployment target** for the public demo. *Recommendation: decide at Phase 9.*
+2. **Supplementary data** (deepset / CDC-FAQ): include or not. *Recommendation: not in v1.*
+3. **Deployment target** for the public demo. *Recommendation: decide at Phase 9.*
+4. **A labelled unanswerable-query set** to validate abstention properly. Phase 3 found that
+   COUGH contains no unanswerable queries, so τ is currently tuned against a 12-query
+   hand-written probe (`src.evaluate.OFF_TOPIC_PROBE`) rather than a benchmark. *Known gap;
+   out of scope for v1.*
 
 ---
 
