@@ -121,3 +121,62 @@ class BM25Retriever(Retriever):
         top = scores.argpartition(-k)[-k:]
         top = top[scores[top].argsort()[::-1]]
         return [(int(self._ids[i]), float(scores[i])) for i in top]
+
+
+class BiEncoderRetriever(Retriever):
+    """Dense retrieval over precomputed KB embeddings (PRD §7.2).
+
+    Where BM25 matches words, this matches meaning: query and KB entry are
+    embedded separately and compared by cosine similarity. That is what lets it
+    reach the 27% of test queries BM25 misses entirely, several of which share
+    no vocabulary at all with their relevant entry.
+
+    Both sides are L2-normalized, so scores are cosine similarities in [-1, 1]
+    and are directly comparable across queries -- the property the abstention
+    threshold τ depends on (PRD §7.5). BM25 scores have no such scale, which is
+    why τ is tuned per retriever rather than shared.
+    """
+
+    def __init__(self, index, encoder=None, batch_size: int = 64) -> None:
+        from src.index import load_encoder, prefixes_for
+
+        self.index = index
+        self.field = index.field
+        self.model_name = index.model_name
+        self.batch_size = batch_size
+        self.name = f"biencoder[{index.model_name.split('/')[-1]}]"
+        self._query_prefix, _ = prefixes_for(index.model_name)
+        self._encoder = encoder or load_encoder(index.model_name)
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def _embed(self, queries: list[str]):
+        from src.index import embed_texts
+
+        return embed_texts(
+            self._encoder, queries, prefix=self._query_prefix, batch_size=self.batch_size
+        )
+
+    def search(self, query: str, top_k: int = 10) -> list[tuple[int, float]]:
+        if not query.strip():
+            return []
+        return self.index.search(self._embed([query]), top_k=top_k)[0]
+
+    def search_batch(self, queries: list[str], top_k: int = 10) -> list[list[tuple[int, float]]]:
+        """Embed the whole batch in one pass.
+
+        This is the point of a bi-encoder: 1,201 queries become a single encode
+        call and one matrix product, instead of 1,201 round trips.
+        """
+        if not queries:
+            return []
+        blank = [i for i, q in enumerate(queries) if not q.strip()]
+        if blank:
+            non_blank = [q for q in queries if q.strip()]
+            hits = self.index.search(self._embed(non_blank), top_k=top_k) if non_blank else []
+            out, it = [], iter(hits)
+            for q in queries:
+                out.append([] if not q.strip() else next(it))
+            return out
+        return self.index.search(self._embed(queries), top_k=top_k)

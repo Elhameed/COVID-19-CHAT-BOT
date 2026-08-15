@@ -8,12 +8,14 @@ how the previous implementation reported an F1 of 0.9576 that meant nothing.
 from __future__ import annotations
 
 import math
+from typing import ClassVar
 
 import pandas as pd
 import pytest
 
 from src.evaluate import (
     DATA_DIR,
+    OFF_TOPIC_PROBE,
     EvalResult,
     evaluate,
     ndcg_at_k,
@@ -21,6 +23,8 @@ from src.evaluate import (
     recall_at_k,
     reciprocal_rank,
     select_split,
+    summarize_abstention,
+    tune_threshold,
 )
 from src.retriever import Retriever
 
@@ -229,3 +233,85 @@ class TestBm25Regression:
         result = evaluate_bm25(split="test", field="question")
         assert result.mrr_at_10 == pytest.approx(0.5127, abs=0.02)
         assert result.p_at_1 == pytest.approx(0.4033, abs=0.02)
+
+
+# --------------------------------------------------------------------------
+# Abstention threshold (PRD §7.5)
+# --------------------------------------------------------------------------
+class TestTuneThreshold:
+    # Three correct answers scoring high, two wrong scoring low.
+    SCORES: ClassVar[list[float]] = [0.9, 0.85, 0.8, 0.5, 0.4]
+    CORRECT: ClassVar[list[bool]] = [True, True, True, False, False]
+
+    def test_off_topic_objective_picks_the_lowest_clean_threshold(self) -> None:
+        """Keeps as much in-scope coverage as possible while rejecting every
+        off-topic query -- the operating point PRD §4 actually describes."""
+        choice = tune_threshold(
+            self.SCORES, self.CORRECT, objective="off_topic", off_topic_scores=[0.3, 0.45]
+        )
+        # Off-topic tops out at 0.45, so 0.5 is the lowest clean threshold, and
+        # it answers the four in-scope queries scoring >= 0.5 (the boundary
+        # query included).
+        assert choice.tau == 0.5
+        assert choice.answered == 4
+        assert choice.precision == pytest.approx(0.75)
+
+    def test_off_topic_objective_requires_probe_scores(self) -> None:
+        with pytest.raises(ValueError, match="needs off_topic_scores"):
+            tune_threshold(self.SCORES, self.CORRECT, objective="off_topic")
+
+    def test_off_topic_objective_raises_when_distributions_overlap(self) -> None:
+        with pytest.raises(ValueError, match="no threshold rejects"):
+            tune_threshold(
+                self.SCORES, self.CORRECT, objective="off_topic", off_topic_scores=[0.99]
+            )
+
+    def test_f1_objective_degenerates_without_unanswerable_queries(self) -> None:
+        """Documents the trap rather than hiding it: when every query has a
+        relevant answer, F1 is maximised by never abstaining, so it selects the
+        bottom of the score range. This is why `off_topic` is the real objective."""
+        choice = tune_threshold([0.9, 0.8, 0.7], [True, True, True], objective="f1")
+        assert choice.tau == min([0.9, 0.8, 0.7])
+        assert choice.answered == 3
+
+    def test_precision_objective_keeps_answering_at_least_half(self) -> None:
+        choice = tune_threshold(self.SCORES, self.CORRECT, objective="precision")
+        assert choice.answer_rate >= 0.5
+        assert choice.precision == pytest.approx(1.0)
+
+    def test_curve_covers_every_candidate_threshold(self) -> None:
+        choice = tune_threshold(self.SCORES, self.CORRECT, objective="precision")
+        assert len(choice.curve) == len(set(self.SCORES))
+
+    def test_rejects_mismatched_inputs(self) -> None:
+        with pytest.raises(ValueError, match="same length"):
+            tune_threshold([0.5], [True, False])
+
+    def test_rejects_empty_input(self) -> None:
+        with pytest.raises(ValueError, match="no dev queries"):
+            tune_threshold([], [])
+
+    def test_unknown_objective_raises(self) -> None:
+        with pytest.raises(ValueError, match="unknown objective"):
+            tune_threshold(self.SCORES, self.CORRECT, objective="accuracy")
+
+
+class TestSummarizeAbstention:
+    def test_reports_both_populations(self) -> None:
+        summary = summarize_abstention(
+            0.7,
+            in_scope_scores=[0.9, 0.8, 0.6],
+            off_topic_scores=[("weather", 0.5), ("bread", 0.75)],
+        )
+        assert summary.in_scope_answered == pytest.approx(2 / 3)
+        assert summary.off_topic_answered == pytest.approx(0.5)
+
+    def test_lists_what_leaked_through(self) -> None:
+        summary = summarize_abstention(
+            0.7, [0.9], [("weather", 0.5), ("bread", 0.95), ("poem", 0.8)]
+        )
+        assert [q for q, _ in summary.leaked] == ["bread", "poem"]
+
+    def test_probe_is_a_documented_smoke_test_not_a_benchmark(self) -> None:
+        assert len(OFF_TOPIC_PROBE) == 12
+        assert all(isinstance(q, str) and q for q in OFF_TOPIC_PROBE)
