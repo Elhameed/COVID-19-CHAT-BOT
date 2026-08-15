@@ -388,41 +388,34 @@ Reuse the existing Flutter app, fixing the known defects:
 ## 17. Project structure
 ```
 covid-chatbot/
-├── data/
-│   ├── kb.parquet          # generated knowledge base artifact
-│   ├── splits/             # seeded train/dev/test query ids (committed; tiny)
-│   └── raw/                # COUGH working copy (never committed)
+├── src/                       # all reusable logic; notebook and API both import it
+│   ├── download.py            # fetch COUGH (raw dumps never committed)
+│   ├── prep.py                # clean/dedupe -> kb.parquet, seeded splits, qrels
+│   ├── index.py               # build/load KB embeddings
+│   ├── retriever.py           # BM25 + bi-encoder behind one interface
+│   ├── evaluate.py            # metrics, threshold tuning, paired bootstrap
+│   └── api.py                 # FastAPI: POST /predict, GET /health
+├── tests/                     # 163 tests: prep, index, retriever, evaluate, api
+├── data/                      # generated; see data/README.md
+│   ├── raw/                   #   COUGH working copy        (not committed)
+│   ├── kb.parquet             #   knowledge base            (not committed)
+│   ├── embeddings/            #   precomputed vectors       (not committed)
+│   ├── splits/                #   seeded query ids          (committed, tiny)
+│   └── prep_report.json       #   what preprocessing changed (committed)
 ├── artifacts/
 │   └── retriever_config.json  # encoder, field, threshold τ — loaded by the API
-├── src/
-│   ├── download.py         # fetch COUGH from GitHub (no raw dumps committed)
-│   ├── prep.py             # clean/filter/dedupe COUGH -> kb.parquet + query splits/qrels
-│   ├── retriever.py        # BM25 + bi-encoder (+ optional cross-encoder) behind one interface
-│   ├── index.py            # build/load KB embeddings
-│   ├── evaluate.py         # MRR / P@k / Recall / nDCG on the COUGH test split
-│   └── api.py              # FastAPI app: /predict, /health, threshold, disclaimer
 ├── notebooks/
-│   └── development.ipynb   # EDA + experiments + training run + eval; imports from src/
-│                           # driven via the Jupyter MCP server (docs/jupyter-mcp.md)
-├── scripts/
-│   └── start_jupyter.py    # JupyterLab the MCP server attaches to
-├── docs/
-│   └── jupyter-mcp.md      # live-kernel notebook workflow
-├── .mcp.json               # project-scoped MCP config (committed; no secrets)
-├── tests/
-│   ├── test_retriever.py
-│   ├── test_evaluate.py
-│   └── test_api.py
-├── app/                    # existing Flutter app (renamed, fixed)
-├── requirements.txt
-├── Dockerfile
-├── .gitignore              # ignore caches, raw data, large embeddings/model files as needed
-├── CLAUDE.md
-├── PRD.md
-└── README.md               # describes what actually exists, with real numbers
+│   └── development.ipynb      # how the retriever was built and measured
+├── scripts/start_jupyter.py   # serves the notebook on :8888
+├── app/                       # Flutter client
+├── .github/workflows/ci.yml   # lint, both test suites, release APK, integrity
+├── requirements-base.txt      # shared pins (edit dependencies here)
+├── requirements.txt           #   + CUDA torch — dev machine
+├── requirements-cpu.txt       #   + CPU torch  — CI and container
+├── Dockerfile                 # Phase 8
+├── pytest.ini · ruff.toml · .gitattributes · .gitignore · .mcp.json · .env.example
+└── CLAUDE.md · PRD.md · README.md
 ```
-
----
 
 ## 18. Development phases and roadmap
 Each phase has explicit acceptance criteria; do not advance until met.

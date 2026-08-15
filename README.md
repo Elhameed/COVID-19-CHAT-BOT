@@ -140,9 +140,8 @@ development are the numbers the app actually serves — the failure the old proj
 unavoidable by having its notebook train BERT-QA while its API served an unrelated
 DialoGPT.
 
-The notebook is developed against a **live kernel** through the
-[Jupyter MCP server](docs/jupyter-mcp.md), so every cell is written, executed and checked
-in place rather than authored blind and hoped over.
+`notebooks/development.ipynb` runs top to bottom against the real corpus and produces the
+numbers quoted above; `scripts/start_jupyter.py` starts a server for it.
 
 ## Getting started
 
@@ -154,11 +153,10 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
 ```
 
-For notebook work, start the JupyterLab instance that Claude Code's MCP server attaches
-to (see [docs/jupyter-mcp.md](docs/jupyter-mcp.md)):
+To open the notebook:
 
 ```bash
-python scripts/start_jupyter.py
+python scripts/start_jupyter.py     # JupyterLab on :8888, token handled for you
 ```
 
 Pipeline:

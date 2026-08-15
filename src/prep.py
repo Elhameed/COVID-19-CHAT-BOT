@@ -42,7 +42,6 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 DATA_DIR = PROJECT_ROOT / "data"
-SPLITS_DIR = DATA_DIR / "splits"
 
 SEED = 42
 SPLIT_RATIOS = {"train": 0.70, "dev": 0.15, "test": 0.15}

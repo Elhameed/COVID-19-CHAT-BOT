@@ -4,7 +4,7 @@
 #   .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
 #   ./.venv/bin/python -m pip install -r requirements.txt           # Linux
 #
-# Verify the GPU is wired up (a Phase 0 acceptance criterion):
+# Verify the GPU is wired up:
 #   python -c "import torch; print(torch.cuda.is_available())"   -> True
 #
 # Target: NVIDIA Quadro T2000 (Turing, sm_75, 4 GB VRAM). cu126 is the only CUDA

@@ -670,19 +670,8 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     if args.retriever in ("biencoder", "both"):
-        from src.index import DEFAULT_MODEL, load_or_build_index
-        from src.retriever import BiEncoderRetriever
-
-        index = load_or_build_index(kb, model_name=args.model or DEFAULT_MODEL, field=args.field)
         results.append(
-            evaluate(
-                BiEncoderRetriever(index),
-                subset,
-                relevant,
-                split=args.split,
-                k=args.k,
-                corpus_size=len(kb),
-            )
+            evaluate_biencoder(split=args.split, model_name=args.model, field=args.field, k=args.k)
         )
 
     print(

@@ -1,9 +1,9 @@
-"""Retrievers behind one interface: BM25 now, dense encoders in Phases 3-4.
+"""Retrievers behind one interface: lexical BM25 and a dense bi-encoder.
 
 Every retriever answers the same question -- given a query, which KB entries are
 most relevant -- so `src.evaluate` and `src.api` never care which one they hold.
-That shared interface is what lets Phase 3 swap a bi-encoder in and compare it
-against BM25 on identical machinery (PRD §7.2).
+That shared interface is what lets the two be compared on identical machinery
+(PRD §7.2).
 
     from src.retriever import BM25Retriever, load_kb
 

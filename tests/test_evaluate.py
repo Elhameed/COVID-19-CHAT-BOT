@@ -336,7 +336,7 @@ class TestSummarizeAbstention:
 
 
 class TestPairedBootstrap:
-    """The comparison that decided Phase 4 must itself be tested."""
+    """The test behind every reported comparison must itself be tested."""
 
     @staticmethod
     def _result(name: str, scores: dict[int, float]) -> EvalResult:
@@ -364,7 +364,7 @@ class TestPairedBootstrap:
         assert c.n_better == 0 and c.n_worse == 0
 
     def test_noisy_small_gain_is_not_called_significant(self) -> None:
-        """The Phase 4 situation: a positive mean whose interval spans zero."""
+        """A positive mean whose interval still spans zero must not be called a win."""
         base = self._result("base", {i: (1.0 if i % 2 else 0.0) for i in range(40)})
         cand = self._result("cand", {i: (1.0 if i % 2 or i == 0 else 0.0) for i in range(40)})
         c = paired_bootstrap(base, cand, metric="rr", n_resamples=4000)
