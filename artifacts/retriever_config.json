@@ -1,0 +1,11 @@
+{
+  "encoder": "sentence-transformers/all-MiniLM-L6-v2",
+  "field": "question",
+  "tau": 0.6932,
+  "tuned_on": "dev",
+  "objective": "off_topic",
+  "dev_in_scope_answered": 0.7667,
+  "probe_off_topic_answered": 0.0,
+  "probe_size": 12,
+  "note": "tau rejects the whole off-topic probe while keeping as much in-scope coverage as possible. The probe is 12 hand-written queries, not a benchmark -- see src.evaluate.OFF_TOPIC_PROBE."
+}

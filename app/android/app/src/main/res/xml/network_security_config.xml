@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 9+ blocks cleartext HTTP by default, which would silently break local
+  development against `uvicorn` on http://.
+
+  Rather than switching cleartext on globally, this permits it only for the
+  addresses a dev backend actually listens on:
+    10.0.2.2   the host machine, as seen from the Android emulator
+    127.0.0.1  the device itself (desktop/loopback debugging)
+    localhost  same
+
+  Everything else — including any deployed API — must be HTTPS (PRD §11).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

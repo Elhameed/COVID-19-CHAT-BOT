@@ -1,0 +1,21 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Keep Flutter's convention of building into <project>/build, using the
+// Gradle 8 layout API -- rootProject.buildDir is deprecated and removed in
+// Gradle 9.
+rootProject.layout.buildDirectory.set(file("../build"))
+subprojects {
+    project.layout.buildDirectory.set(rootProject.layout.buildDirectory.dir(project.name))
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
+}

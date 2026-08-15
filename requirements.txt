@@ -1,0 +1,22 @@
+# Dev machine dependencies — CUDA torch (PRD §16.1).
+#
+#   py -3.11 -m venv .venv
+#   .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
+#   ./.venv/bin/python -m pip install -r requirements.txt           # Linux
+#
+# Verify the GPU is wired up (a Phase 0 acceptance criterion):
+#   python -c "import torch; print(torch.cuda.is_available())"   -> True
+#
+# Target: NVIDIA Quadro T2000 (Turing, sm_75, 4 GB VRAM). cu126 is the only CUDA
+# variant publishing a 2.13.0 cp311 Windows wheel, so this pin is not arbitrary.
+#
+# The `+cu126` local version is load-bearing: PEP 440 ranks `2.13.0+cu126` above
+# a bare `2.13.0`, so naming it keeps the resolver from drifting.
+#
+# The GPU's only job is embedding the 7k-entry corpus (~5s, against roughly a
+# minute on CPU). Serving needs no GPU at all -- use requirements-cpu.txt there.
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+torch==2.13.0+cu126
+
+-r requirements-base.txt

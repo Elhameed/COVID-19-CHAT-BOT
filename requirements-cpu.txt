@@ -1,0 +1,18 @@
+# CPU-only dependencies — for CI and the deployment container (PRD §20).
+#
+#   pip install -r requirements-cpu.txt
+#
+# Identical to requirements.txt except for torch. Search is an exact NumPy
+# product over ~7k vectors, so serving never needs a GPU; installing the CUDA
+# build here would add ~2.3 GB for nothing.
+#
+# The `+cpu` local version is load-bearing in the opposite direction to the CUDA
+# pin: without it, PEP 440 ranks the CUDA wheel higher and pip picks that.
+#
+# Windows and Linux x86_64 only. macOS has no +cpu variant because PyPI torch is
+# already CPU-only there -- drop the suffix on macOS.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.13.0+cpu
+
+-r requirements-base.txt
