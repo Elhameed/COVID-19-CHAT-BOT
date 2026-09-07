@@ -165,9 +165,9 @@ _TRUST_RANK = {"official": 0, "community": 1}
 def normalize_text(value: object) -> str:
     """Normalize whitespace, unicode and stray markup — but never content.
 
-    Deliberately does NOT lowercase, strip punctuation, or remove digits. The
-    old pipeline's ``re.sub(r"[^a-zA-Z\\s]", "", text)`` turned "COVID-19" into
-    "covid" and "20 seconds" into "seconds"; both matter here.
+    Deliberately does NOT lowercase, strip punctuation, or remove digits. A
+    naive ``re.sub(r"[^a-zA-Z\\s]", "", text)`` would turn "COVID-19" into
+    "covid" and "20 seconds" into "seconds"; both matter in health content.
 
     NFKC folds the non-breaking spaces COUGH inherited from scraped HTML (e.g.
     "51\\xa0cm") into ordinary spaces while leaving real characters intact.

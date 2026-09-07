@@ -306,9 +306,8 @@ def predict(
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return a generic error.
 
-    The previous implementation returned `str(exc)` to the caller, leaking
-    filesystem paths and internals. The detail belongs in the log, not the
-    response.
+    Returning `str(exc)` to the caller leaks filesystem paths and internals.
+    The detail belongs in the log, not the response.
     """
     logger.exception("unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "internal server error"})

@@ -30,9 +30,8 @@ flutter run --dart-define=API_BASE_URL=https://api.example.com   # deployed
 | Desktop / web | `http://127.0.0.1:8000` | default elsewhere |
 | Deployed | `https://…` | cleartext is blocked for non-local hosts |
 
-This is the defect that made the previous build unusable on a device: it hardcoded
-`127.0.0.1`, and `INTERNET` was declared only in the debug manifest, so release builds had
-no network access at all.
+The base URL is never hardcoded — it comes from `--dart-define=API_BASE_URL`, falling back
+to the platform default above.
 
 ## Structure
 
@@ -41,7 +40,7 @@ lib/
 ├── main.dart                    app + theme wiring
 ├── theme.dart                   Material 3 colour scheme, light and dark
 ├── models/
-│   ├── predict_response.dart    the §10.2 contract
+│   ├── predict_response.dart    the /predict response contract
 │   └── chat_message.dart        user / bot / error turns
 ├── services/
 │   └── api_service.dart         HTTP, configurable base URL, typed failures
@@ -63,55 +62,33 @@ lib/
   "No confident match" and shows no source — a safe fallback must never appear to carry a
   WHO badge.
 - **Failures are never presented as answers.** Network errors render as an error bubble with
-  a plain-language message. The previous app printed raw exception text into the transcript.
+  a plain-language message, never raw exception text.
 
 ## Networking config
 
 - **Android:** `INTERNET` is declared in the *main* manifest, and
   `res/xml/network_security_config.xml` permits cleartext only for `10.0.2.2`, `127.0.0.1`
   and `localhost`. Everything else must be HTTPS.
-- **iOS:** `NSAllowsLocalNetworking` in `Info.plist`, which is the ATS exception scoped to
-  local addresses.
+- **iOS:** `NSAllowsLocalNetworking` in `Info.plist`, the ATS exception scoped to local
+  addresses.
 
-## Android toolchain
+Binary assets are protected by [`.gitattributes`](../.gitattributes) at the repository root,
+which marks PNGs and other binary types so git never applies line-ending normalization to
+them.
 
-The Android build files were upgraded to match Flutter 3.41's Gradle plugin:
+## Toolchain
 
-| | Was | Now |
-|---|---|---|
-| Gradle | 7.6.3 | **8.14** |
-| Android Gradle Plugin | 7.3.0 | **8.11.1** |
-| Kotlin | 1.7.10 | **2.2.20** |
-| Java source/target | 8 | **17** |
-
-On the old versions `flutter run` failed inside Flutter's *own* plugin with
-`Unresolved reference: filePermissions` — that API landed in Gradle 8.3, so the wrapper was
-simply older than the SDK expected. `android.enableJetifier` was also dropped; AGP 8 removed
-it.
-
-## A note on the icons
-
-Every app icon in this repository was previously corrupt. With `core.autocrlf=true` and no
-`.gitattributes`, git treated the PNGs as text and stripped their carriage-return
-bytes, so their signature read `89 50 4E 47 0A 1A 0A` instead of
-`89 50 4E 47 0D 0A 1A 0A` — **in the committed blobs**, across Android, iOS,
-macOS and web.
-
-Debug builds hid it because they skip PNG crunching. It surfaced only on the first release
-build, as `AAPT: error: file failed to compile`.
-
-The root cause is fixed by [`.gitattributes`](../.gitattributes) at the repository root,
-which marks binary types so git never transforms them again. The icons themselves were
-restored from the Flutter templates where possible and regenerated otherwise.
+Built against Flutter 3.41 / Dart 3, with Gradle 8.14, Android Gradle Plugin 8.11.1,
+Kotlin 2.2.20 and Java 17.
 
 ## Tests
 
 ```bash
-flutter test                                    # 32 tests, no server needed
+flutter test                                      # 37 tests
 flutter test test/integration/live_api_test.dart  # against a running API
 ```
 
-`test/widget_test.dart` drives the real screens against a mocked HTTP client.
-`test/integration/live_api_test.dart` is the only test that exercises the Dart client and
-the Python service together — it **skips automatically** when the API isn't running, so the
-default suite stays green offline.
+`test/widget_test.dart` holds 31 tests that drive the real screens against a mocked HTTP
+client. `test/integration/live_api_test.dart` is the only test that exercises the Dart
+client and the Python service together — it **skips automatically** when the API isn't
+running, so the default suite stays green offline.

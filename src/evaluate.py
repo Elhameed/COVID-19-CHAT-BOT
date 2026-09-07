@@ -15,8 +15,8 @@ MRR@10 and P@1 lead instead, because the chat UI shows exactly one answer.
 
 Anti-leakage: `--split test` is the default and the only split whose
 numbers are ever reported as results. BM25 trains on nothing, so its "all"
-figure is safe to quote for comparison against the published benchmark, but the
-acceptance chain in §8.4 is judged on test alone.
+figure is safe to quote for comparison against the published benchmark, but any
+claim that one retriever beats another is judged on test alone.
 """
 
 from __future__ import annotations

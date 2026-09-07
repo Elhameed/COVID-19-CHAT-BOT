@@ -10,13 +10,10 @@ __pycache__/
 .mypy_cache/
 
 # --- Jupyter ---
+# Checkpoints and local server runtime state, not deliverables.
 .ipynb_checkpoints/
-
-# Real-time-collaboration runtime state, created by jupyter-collaboration when
-# the server runs. The YDoc CRDT store is a live scratch database, not a
-# deliverable -- committing it would leak notebook edit history and conflict on
-# every machine.
 .jupyter/
+.jupyter_token
 .jupyter_ystore.db
 .jupyter_ystore.db-*
 *.ystore.db
@@ -27,28 +24,20 @@ __pycache__/
 !.env.example
 *.key
 
-# --- Private: development tooling and internal planning ---
-# These stay on the developer's machine. They are not part of the deliverable,
-# and nothing in src/, tests/, app/ or the notebook depends on them.
-#
-# Already-tracked files needed `git rm --cached` as well as these rules; a
-# .gitignore entry alone does not stop tracking something git already knows.
+# --- Local developer tooling ---
+# Machine-local notes, editor and assistant config. Nothing in src/, tests/,
+# app/ or the notebook depends on any of it.
 PRD.md
 CLAUDE.md
+AGENTS.md
 .claude/
 .mcp.json
-.jupyter_token
-.jupyter/
-.jupyter_ystore.db
-.jupyter_ystore.db-*
-*.ystore.db
-scripts/start_jupyter.py
-AGENTS.md
-.cursorrules
-.aider*
 .continue/
+.cursorrules
 .windsurfrules
+.aider*
 .github/copilot-instructions.md
+scripts/
 
 # --- Raw datasets ---
 # COUGH is CC BY-NC-SA 4.0 and is fetched by `python -m src.download`, never
@@ -76,10 +65,6 @@ data/embeddings/
 
 # No model weights are committed. The encoder is a stock Hugging Face model
 # fetched on first use, and the KB embeddings above are derived data.
-#
-# Kept as a deliberate reminder: the previous implementation's entire .gitignore
-# was the single line `*.safetensors`, its weights never reached the repo, and
-# `from_pretrained("./model")` raised OSError on every fresh clone.
 
 # --- Hugging Face cache ---
 .cache/

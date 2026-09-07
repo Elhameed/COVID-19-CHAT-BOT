@@ -21,8 +21,12 @@ indexed on, and the similarity threshold below which the bot abstains rather tha
 }
 ```
 
+The file also records how τ was chosen: the tuning objective, the in-scope coverage and
+off-topic rejection it achieves, and the size of the probe those came from.
+
 τ is tuned on the **dev** split and never on test. At this value the retriever answers 77% of
-in-scope dev queries and none of the off-topic probe in `src.evaluate.OFF_TOPIC_PROBE`.
+in-scope dev queries and none of the off-topic probe in `src.evaluate.OFF_TOPIC_PROBE` — 12
+hand-written out-of-scope questions, a smoke test rather than a benchmark.
 
 ## No model weights live here
 
